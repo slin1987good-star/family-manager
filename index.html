@@ -678,9 +678,15 @@ const EventRow = ({ event, onOpen, compact, currentUser }) => {
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
           <MemberStack ids={event.members} size="sm"/>
-          {event.aiSummary && (
+          {event.aiSummary ? (
             <span style={{ fontSize: 10, color: 'var(--lavender)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
               <Icon name="sparkle" size={11}/> AI 已分析
+            </span>
+          ) : event.aiStatus === 'failed' ? (
+            <span style={{ fontSize: 10, color: 'var(--coral)', fontWeight: 700 }}>AI 分析失败</span>
+          ) : (
+            <span style={{ fontSize: 10, color: 'var(--ink-faint)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Icon name="sparkle" size={11}/> AI 正在想…
             </span>
           )}
         </div>
@@ -1105,6 +1111,25 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser }) => {
           </div>
         )}
 
+        {!event.aiSummary && event.aiStatus !== 'failed' && (
+          <div className="card ai-card" style={{ padding: 16, textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-soft)' }}>
+              <Icon name="sparkle" size={14} color="var(--lavender)" style={{ marginRight: 6 }}/>
+              AI 正在分析这件事，通常 10–30 秒…
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 6 }}>
+              （下拉或返回列表刷新）
+            </div>
+          </div>
+        )}
+        {!event.aiSummary && event.aiStatus === 'failed' && (
+          <div className="card" style={{ padding: 14, borderLeft: '3px solid var(--coral)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--coral)' }}>AI 分析失败</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
+              家里的 worker 可能没跑起来，或这条事件太复杂。
+            </div>
+          </div>
+        )}
         {event.aiSummary && (
           <div className="card ai-card" style={{ padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -1889,6 +1914,29 @@ const App = () => {
     window.addEventListener('family-unauthorized', onUnauth);
     return () => window.removeEventListener('family-unauthorized', onUnauth);
   }, [authed]);
+
+  // Poll events while any event is still being analyzed; stop once all done.
+  useEffect(() => {
+    if (!currentUser) return;
+    const hasPending = EVENTS.some(e => e.aiStatus === 'pending' || e.aiStatus === 'processing');
+    if (!hasPending) return;
+    const t = setInterval(async () => {
+      try {
+        const latest = await api('/api/events');
+        EVENTS = latest.map(normalizeEvent);
+        // refresh the currently opened detail event if it matches
+        if (selectedEvent) {
+          const updated = EVENTS.find(e => e.id === selectedEvent.id);
+          if (updated) setSelectedEvent(updated);
+        }
+        rerender();
+        if (!EVENTS.some(e => e.aiStatus === 'pending' || e.aiStatus === 'processing')) {
+          clearInterval(t);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(t);
+  }, [currentUser, selectedEvent?.id, EVENTS.length]);
 
   useEffect(() => { localStorage.setItem('family-tweaks', JSON.stringify(settings)); }, [settings]);
 

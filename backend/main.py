@@ -1,6 +1,7 @@
+import os
 from datetime import datetime, timezone
-from typing import List
-from fastapi import FastAPI, Depends, HTTPException
+from typing import List, Optional
+from fastapi import FastAPI, Depends, HTTPException, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import inspect, text
@@ -10,7 +11,10 @@ from db import Base, engine, get_db
 import models
 import schemas
 import auth
+import ai as ai_mod
 from seed import seed_if_empty
+
+WORKER_TOKEN = os.environ.get("WORKER_TOKEN", "")
 
 
 def ensure_columns():
@@ -113,6 +117,12 @@ def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
+
+    # Enqueue AI analysis — the Mac worker picks this up within seconds.
+    prompt = ai_mod.build_event_analysis_prompt(db, event)
+    db.add(models.AiJob(job_type="event_analysis", event_id=event.id, prompt=prompt))
+    db.commit()
+
     return event
 
 
@@ -126,3 +136,106 @@ def get_event(
     if not event:
         raise HTTPException(404, "event not found")
     return event
+
+
+# ---- Worker endpoints --------------------------------------------------
+# Polled by the Mac worker; authenticated with a shared token (not user PIN).
+
+def require_worker(x_worker_token: str = Header(default="")):
+    if not WORKER_TOKEN or x_worker_token != WORKER_TOKEN:
+        raise HTTPException(401, "worker token invalid")
+
+
+class JobOut(BaseModel):
+    id: int
+    job_type: str
+    event_id: Optional[int] = None
+    prompt: str
+    attempts: int
+
+
+@app.get("/api/worker/jobs/next")
+def worker_next_job(
+    response: Response,
+    _: None = Depends(require_worker),
+    db: Session = Depends(get_db),
+):
+    job = (
+        db.query(models.AiJob)
+        .filter(models.AiJob.status == "pending")
+        .order_by(models.AiJob.created_at.asc())
+        .first()
+    )
+    if not job:
+        response.status_code = 204
+        return None
+    job.status = "processing"
+    job.started_at = datetime.now(timezone.utc)
+    job.attempts = (job.attempts or 0) + 1
+    db.commit()
+    db.refresh(job)
+    return JobOut(
+        id=job.id, job_type=job.job_type, event_id=job.event_id,
+        prompt=job.prompt or "", attempts=job.attempts,
+    )
+
+
+class JobComplete(BaseModel):
+    result: dict
+
+
+@app.post("/api/worker/jobs/{job_id}/complete")
+def worker_complete(
+    job_id: int,
+    body: JobComplete,
+    _: None = Depends(require_worker),
+    db: Session = Depends(get_db),
+):
+    job = db.query(models.AiJob).get(job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+
+    job.status = "done"
+    job.result = body.result
+    job.completed_at = datetime.now(timezone.utc)
+
+    if job.job_type == "event_analysis" and job.event_id:
+        ev = db.query(models.Event).get(job.event_id)
+        if ev:
+            r = body.result or {}
+            ev.ai_summary = r.get("summary") or None
+            ev.ai_cause = r.get("cause") or None
+            ev.ai_suggest = r.get("suggest") or None
+            ev.ai_script = r.get("script") or None
+            ev.ai_status = "done"
+
+    db.commit()
+    return {"ok": True}
+
+
+class JobFail(BaseModel):
+    error: str
+
+
+@app.post("/api/worker/jobs/{job_id}/fail")
+def worker_fail(
+    job_id: int,
+    body: JobFail,
+    _: None = Depends(require_worker),
+    db: Session = Depends(get_db),
+):
+    job = db.query(models.AiJob).get(job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    # retry up to 3 attempts; otherwise mark failed
+    if (job.attempts or 0) < 3:
+        job.status = "pending"
+    else:
+        job.status = "failed"
+        if job.event_id:
+            ev = db.query(models.Event).get(job.event_id)
+            if ev:
+                ev.ai_status = "failed"
+    job.error = body.error[:2000]
+    db.commit()
+    return {"ok": True, "retry": job.status == "pending"}

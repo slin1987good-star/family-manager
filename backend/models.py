@@ -36,3 +36,26 @@ class Event(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     author = relationship("User")
+
+
+class AiJob(Base):
+    __tablename__ = "ai_jobs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_type = Column(String, nullable=False, index=True)
+    status = Column(String, default="pending", index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True)
+    prompt = Column(Text)
+    result = Column(JSON)
+    error = Column(Text)
+    attempts = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+
+
+class FamilyContext(Base):
+    __tablename__ = "family_context"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    content = Column(Text, nullable=False)
+    source_job_id = Column(Integer, ForeignKey("ai_jobs.id"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
