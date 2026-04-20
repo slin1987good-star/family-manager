@@ -16,6 +16,13 @@ if [ -z "$FAMILY_WORKER_TOKEN" ]; then
   exit 1
 fi
 
+if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+  echo "error: CLAUDE_CODE_OAUTH_TOKEN is required" >&2
+  echo "   run 'claude setup-token' in a terminal first; it opens a browser" >&2
+  echo "   and prints a long-lived sk-ant-oat01-... token you paste here." >&2
+  exit 1
+fi
+
 LABEL="com.gw.family-manager.worker"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKER_SCRIPT="$SCRIPT_DIR/worker.py"
@@ -53,6 +60,7 @@ cat > "$PLIST_PATH" <<EOF
     <key>FAMILY_WORKER_TOKEN</key><string>$FAMILY_WORKER_TOKEN</string>
     <key>FAMILY_API</key><string>${FAMILY_API:-https://gw-family-manager.fly.dev}</string>
     <key>CLAUDE_BIN</key><string>$CLAUDE_BIN</string>
+    <key>CLAUDE_CODE_OAUTH_TOKEN</key><string>$CLAUDE_CODE_OAUTH_TOKEN</string>
     <key>PATH</key><string>$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>

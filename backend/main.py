@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +15,50 @@ import ai as ai_mod
 from seed import seed_if_empty
 
 WORKER_TOKEN = os.environ.get("WORKER_TOKEN", "")
+
+# Family lives in Beijing (UTC+8). The daily report fires when local time
+# crosses 07:30, reports on the previous calendar day.
+BEIJING = timezone(timedelta(hours=8))
+
+
+def _beijing_now():
+    return datetime.now(BEIJING)
+
+
+def enqueue_daily_report_if_due(db: Session):
+    """Called on every worker poll. Cheap: constant-time checks + an index
+    hit on daily_reports.report_date."""
+    now = _beijing_now()
+    # Before 07:30, don't queue anything.
+    if now.hour < 7 or (now.hour == 7 and now.minute < 30):
+        return
+    target_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    # Already have a report for yesterday?
+    existing = db.query(models.DailyReport).filter_by(report_date=target_date).first()
+    if existing:
+        return
+    # Any daily_report job (pending / processing / failed) created in the last
+    # 2 hours? Skip. Prevents infinite re-enqueuing during rate-limit storms.
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    recent = (
+        db.query(models.AiJob)
+        .filter(models.AiJob.job_type == "daily_report")
+        .filter(models.AiJob.created_at >= cutoff)
+        .first()
+    )
+    if recent:
+        return
+    prompt = ai_mod.build_daily_report_prompt(db, target_date)
+    db.add(models.AiJob(
+        job_type="daily_report",
+        event_id=None,
+        prompt=prompt,
+    ))
+    # Store target_date on the job via a simple prefix marker we can read on
+    # complete. Using a dedicated column would be cleaner; marker keeps the
+    # migration surface minimal.
+    db.flush()
+    db.commit()
 
 
 def ensure_columns():
@@ -126,6 +170,38 @@ def create_event(
     return event
 
 
+class DailyReportOut(BaseModel):
+    report_date: str
+    highlight: str = ""
+    good: List[str] = []
+    watch: List[str] = []
+    tip: str = ""
+
+
+@app.get("/api/daily-report")
+def get_daily_report(
+    db: Session = Depends(get_db),
+    _: models.User = Depends(auth.current_user),
+):
+    """Returns the most recent completed daily report. Frontend shows this
+    on the home screen. Returns 204 if none generated yet."""
+    row = (
+        db.query(models.DailyReport)
+        .order_by(models.DailyReport.report_date.desc())
+        .first()
+    )
+    if not row:
+        return Response(status_code=204)
+    c = row.content or {}
+    return {
+        "report_date": row.report_date,
+        "highlight": c.get("highlight", ""),
+        "good": c.get("good", []),
+        "watch": c.get("watch", []),
+        "tip": c.get("tip", ""),
+    }
+
+
 @app.get("/api/events/{event_id}", response_model=schemas.EventOut)
 def get_event(
     event_id: int,
@@ -160,6 +236,11 @@ def worker_next_job(
     _: None = Depends(require_worker),
     db: Session = Depends(get_db),
 ):
+    # Lazy scheduling: every poll, check if daily report is due. Cheap.
+    try:
+        enqueue_daily_report_if_due(db)
+    except Exception as e:
+        print(f"daily enqueue failed: {e}")
     job = (
         db.query(models.AiJob)
         .filter(models.AiJob.status == "pending")
@@ -208,6 +289,35 @@ def worker_complete(
             ev.ai_suggest = r.get("suggest") or None
             ev.ai_script = r.get("script") or None
             ev.ai_status = "done"
+
+    elif job.job_type == "daily_report":
+        r = body.result or {}
+        # Yesterday, Beijing time, computed from job creation time
+        job_created = (job.created_at or datetime.now(timezone.utc)).astimezone(BEIJING)
+        target_date = (job_created - timedelta(days=1)).strftime("%Y-%m-%d")
+        report_content = {
+            "highlight": r.get("highlight", ""),
+            "good": r.get("good", []) or [],
+            "watch": r.get("watch", []) or [],
+            "tip": r.get("tip", ""),
+        }
+        # Upsert by report_date
+        existing = (
+            db.query(models.DailyReport).filter_by(report_date=target_date).first()
+        )
+        if existing:
+            existing.content = report_content
+            existing.source_job_id = job.id
+        else:
+            db.add(models.DailyReport(
+                report_date=target_date,
+                content=report_content,
+                source_job_id=job.id,
+            ))
+        # And update the rolling family_context L3 card
+        new_ctx = (r.get("context") or "").strip()
+        if new_ctx:
+            db.add(models.FamilyContext(content=new_ctx, source_job_id=job.id))
 
     db.commit()
     return {"ok": True}

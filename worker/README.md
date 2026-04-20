@@ -6,10 +6,26 @@ subscription), then posts the JSON reply back.
 
 ## Install
 
+Step 1 — get a long-lived Claude Code token (one time):
+
 ```bash
+claude setup-token
+```
+
+This opens a browser, you approve, and it prints a token starting with
+`sk-ant-oat01-`. Copy it.
+
+Step 2 — install the LaunchAgent:
+
+```bash
+export CLAUDE_CODE_OAUTH_TOKEN=<paste the token from step 1>
 export FAMILY_WORKER_TOKEN=<the WORKER_TOKEN you set on Fly>
 ./install.sh
 ```
+
+The short-lived OAuth tokens Claude Desktop writes to the macOS keychain
+expire every couple of days, which is why `setup-token` exists — it gives
+a token designed for headless/CI use.
 
 This writes a LaunchAgent to `~/Library/LaunchAgents/com.gw.family-manager.worker.plist`
 so it starts at login and restarts on crash.

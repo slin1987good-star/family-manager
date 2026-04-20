@@ -313,6 +313,7 @@ async function api(path, opts = {}) {
     window.dispatchEvent(new Event('family-unauthorized'));
     throw new Error('unauthorized');
   }
+  if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
   return data;
@@ -363,12 +364,16 @@ const EVENT_TYPES = {
 
 /* EVENTS now comes from API — populated in App loadData() */
 
-const DAILY_REPORT = {
-  date: '4 月 20 日 · 周一',
-  highlight: '今天全家有 3 件值得记住的小事，1 个需要关心的小摩擦。',
-  good: ['儿子第一次独立完成 200 片拼图', '一家人连续 5 天按时入睡'],
-  watch: ['作业时间的节奏分歧，已连续出现 3 天'],
-  tip: '今晚可以试试"先 20 分钟自由，再一起写作业"的节奏，把规则变成约定。',
+/* DAILY_REPORT comes from /api/daily-report once the 07:30 job produces one.
+   If null, getDailyReport() below falls through to a gentle placeholder. */
+let DAILY_REPORT = null;
+
+const formatReportDate = (yyyymmdd) => {
+  if (!yyyymmdd) return '';
+  const [y, m, d] = yyyymmdd.split('-').map(Number);
+  const weekdays = ['周日','周一','周二','周三','周四','周五','周六'];
+  const dt = new Date(y, m - 1, d);
+  return `${m} 月 ${d} 日 · ${weekdays[dt.getDay()]}`;
 };
 
 const AI_ADVICE = [
@@ -433,35 +438,46 @@ const localizeEvent = (event, viewerId) => {
 
 const getDailyReport = (viewerId) => {
   const user = FAMILY[viewerId];
-  if (!user || user.role === 'editor') {
+  const isKid = user && user.role === 'viewer';
+
+  // Nothing generated yet — gentle placeholder.
+  if (!DAILY_REPORT) {
     return {
-      ...DAILY_REPORT,
+      title: isKid ? '我的小日报' : '家庭小报告',
+      date: '等待明早 07:30',
+      highlight: '明天早上 7:30，AI 会把昨天的事总结成一份小报告送来。先记几条今天的事吧 ✨',
+      good: [],
+      watch: [],
+      tip: '睡前花 30 秒记录一件今天印象最深的小事。',
+    };
+  }
+
+  const date = formatReportDate(DAILY_REPORT.report_date) || '';
+
+  if (!isKid) {
+    return {
       title: '家庭小报告',
+      date,
       highlight: relabel(DAILY_REPORT.highlight, viewerId),
-      good: DAILY_REPORT.good.map(s => relabel(s, viewerId)),
-      watch: DAILY_REPORT.watch.map(s => relabel(s, viewerId)),
+      good: (DAILY_REPORT.good || []).map(s => relabel(s, viewerId)),
+      watch: (DAILY_REPORT.watch || []).map(s => relabel(s, viewerId)),
       tip: relabel(DAILY_REPORT.tip, viewerId),
     };
   }
-  if (viewerId === 'son') {
-    return {
-      title: '我的小日报', date: DAILY_REPORT.date,
-      highlight: '今天你有 1 件超棒的事 ✨，也有一个小进步正在发生！',
-      good: ['你第一次独立完成了 200 片拼图 🧩', '全家连续 5 天准时睡觉，你也是！'],
-      watch: [],
-      tip: '今天睡前可以画一幅拼图城堡，把这件厉害的事留下来~',
-    };
-  }
-  if (viewerId === 'daughter') {
-    return {
-      title: '我的小日报', date: DAILY_REPORT.date,
-      highlight: '今天你有 1 个好习惯在坚持 🌱，也有 1 件和妈妈的小摩擦可以聊聊。',
-      good: ['阅读已经连续 12 天啦，你真的很有毅力'],
-      watch: ['和妈妈关于作业时间的分歧，其实你们都在乎对方'],
-      tip: '可以主动和妈妈聊聊：你希望怎么安排晚上的时间？',
-    };
-  }
-  return DAILY_REPORT;
+
+  // Kids see the shared report but framed more personally + filtered to
+  // items that mention them (heuristic: title has their name or a relation
+  // word). Keeps L3 AI-maintained and child-safe.
+  const myName = FAMILY[viewerId]?.name || '';
+  const mentions = (line) => !myName || line.includes(myName) || line.includes('全家') || line.includes('一起');
+  return {
+    title: '我的小日报',
+    date,
+    highlight: relabel(DAILY_REPORT.highlight, viewerId),
+    good: (DAILY_REPORT.good || []).filter(mentions).map(s => relabel(s, viewerId)),
+    watch: (DAILY_REPORT.watch || []).filter(mentions).map(s => relabel(s, viewerId)),
+    tip: relabel(DAILY_REPORT.tip, viewerId),
+  };
 };
 
 const getAdviceForViewer = (viewerId) => {
@@ -1894,13 +1910,15 @@ const App = () => {
   const rerender = () => forceTick(t => t + 1);
 
   const loadData = async () => {
-    const [me, users, events] = await Promise.all([
+    const [me, users, events, daily] = await Promise.all([
       api('/api/me'),
       api('/api/users'),
       api('/api/events'),
+      api('/api/daily-report').catch(() => null),  // 204 → null
     ]);
     buildMembers(users);
     EVENTS = events.map(normalizeEvent);
+    DAILY_REPORT = daily || null;
     setCurrentUser(FAMILY[me.id]);
   };
 

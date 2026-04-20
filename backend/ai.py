@@ -159,3 +159,63 @@ def build_event_analysis_prompt(db: Session, event: models.Event) -> str:
         "- script 是一段自然的口语，不是标题。",
     ]
     return "\n".join(parts)
+
+
+# ---- Daily report (L2 → L3) -------------------------------------------
+
+def build_daily_report_prompt(db: Session, target_date: str) -> str:
+    """Prompt for the 07:30 family daily report. Feeds in events from the last
+    24h (L1 summaries preferred, raw titles as fallback) plus the current L3
+    family state card. The AI returns the day's report AND an updated L3 card
+    in one round trip, so context stays tight."""
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    cutoff = _dt.now(_tz.utc) - _td(hours=36)
+
+    events = (
+        db.query(models.Event)
+        .filter(models.Event.created_at >= cutoff)
+        .order_by(models.Event.created_at.asc())
+        .all()
+    )
+
+    ctx = latest_context(db)
+
+    parts = [
+        "你是一位温柔、有洞察力的家庭顾问。每天早上 7:30，你要给这家人送上一份昨天的家庭小报告，并同时更新这家人的「家庭状态卡」以便后续几天参考。",
+        "",
+        "## 家庭成员",
+        member_card(db),
+        "",
+    ]
+
+    if ctx:
+        parts += ["## 当前家庭状态卡（你昨天写的）", ctx.strip(), ""]
+    else:
+        parts += ["## 当前家庭状态卡", "（首次运行，还没有状态卡）", ""]
+
+    parts += [f"## 昨天（{target_date}）发生的事"]
+    if not events:
+        parts += ["（昨天没有记录到事件）"]
+    else:
+        for e in events:
+            summary = e.ai_summary or _truncate(e.description, 80) or e.title
+            parts.append(f"- [{e.type}] {e.title} — {_truncate(summary, 100)}")
+    parts.append("")
+
+    parts += [
+        "## 你要返回的 JSON",
+        "只返回 JSON，键名全英文，不要 markdown 代码块：",
+        "{",
+        '  "highlight": "一句话总览昨天，30-50 字",',
+        '  "good":    ["温暖/值得庆祝的点 1", "点 2"],    // 1-3 条',
+        '  "watch":   ["需要留意的苗头 1", "苗头 2"],       // 0-2 条',
+        '  "tip":     "今天可以试试的具体小建议（一两句）",',
+        '  "context": "更新后的家庭状态卡（200-350 字），包含：成员关系近况、近期主题、正在关心的事、值得延续的习惯"',
+        "}",
+        "",
+        "注意：",
+        "- 所有称呼保留家庭内部用语（爸爸/妈妈/女儿/儿子）。",
+        "- 语气温暖、具体，不空泛。",
+        "- 如果昨天没事件，context 基本保持原样，微调即可；good/watch 可留空数组，tip 给个通用的今日温馨提示。",
+    ]
+    return "\n".join(parts)

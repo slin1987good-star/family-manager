@@ -59,3 +59,12 @@ class FamilyContext(Base):
     content = Column(Text, nullable=False)
     source_job_id = Column(Integer, ForeignKey("ai_jobs.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class DailyReport(Base):
+    __tablename__ = "daily_reports"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    report_date = Column(String, unique=True, index=True, nullable=False)  # YYYY-MM-DD (Beijing)
+    content = Column(JSON, nullable=False)   # {highlight, good[], watch[], tip}
+    source_job_id = Column(Integer, ForeignKey("ai_jobs.id"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
