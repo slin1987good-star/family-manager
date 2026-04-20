@@ -1,0 +1,1929 @@
+<!DOCTYPE html>
+<html lang="zh" style="--fs-scale: 1;">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>家庭管理系统 · 温暖治愈</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ========== design tokens ========== */
+:root {
+  --bg: #FBF6EC;
+  --bg-soft: #F4EADA;
+  --surface: #FFFFFF;
+  --surface-muted: #FAF2E4;
+  --ink: #3A332B;
+  --ink-soft: #6B5F52;
+  --ink-faint: #A89A8A;
+  --line: #E8DCC7;
+  --line-soft: #F0E6D3;
+
+  --coral: #D98F6C;
+  --coral-soft: #F6D9C8;
+  --olive: #8A9A5B;
+  --olive-soft: #DBE1C1;
+  --lavender: #9A8FB0;
+  --lavender-soft: #E0DAEA;
+  --honey: #C79E5A;
+  --honey-soft: #F1E2C2;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+
+  --shadow-card: 0 1px 2px rgba(58,51,43,0.04), 0 8px 24px rgba(58,51,43,0.06);
+  --shadow-soft: 0 2px 12px rgba(58,51,43,0.05);
+
+  --font-body: 'Nunito', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-hand: 'Caveat', 'Nunito', cursive;
+
+  --fs-scale: 1;
+}
+
+.theme-dark {
+  --bg: #23201C;
+  --bg-soft: #2C2823;
+  --surface: #2E2A25;
+  --surface-muted: #362F28;
+  --ink: #F4ECDE;
+  --ink-soft: #C9BDA8;
+  --ink-faint: #8A7E6B;
+  --line: #3E362D;
+  --line-soft: #332D26;
+  --coral-soft: #4A3427;
+  --olive-soft: #353B25;
+  --lavender-soft: #3A3544;
+  --honey-soft: #413520;
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+}
+
+.palette-mint {
+  --bg: #F1F6F0; --bg-soft: #E3ECDF; --surface: #FFFFFF; --surface-muted: #EDF3EA;
+  --ink: #2C352D; --ink-soft: #5E6A5F; --line: #D7E2D2; --line-soft: #E5EDE0;
+  --coral: #6FA78A; --coral-soft: #D2E4D7;
+  --olive: #7C9D6A; --olive-soft: #DCE6CE;
+  --lavender: #8AA9B2; --lavender-soft: #D6E3E6;
+  --honey: #C1A86B; --honey-soft: #EDE2C4;
+}
+
+.palette-rose {
+  --bg: #FCF3F1; --bg-soft: #F6E4DE; --surface: #FFFFFF; --surface-muted: #FAEAE4;
+  --ink: #3C2A27; --ink-soft: #6F564F; --line: #EDD6CD; --line-soft: #F4E3DB;
+  --coral: #D97461; --coral-soft: #F6D5CC;
+  --olive: #B38A7F; --olive-soft: #EAD6CF;
+  --lavender: #A993A8; --lavender-soft: #E5D8E2;
+  --honey: #C98E5A; --honey-soft: #F1D9BC;
+}
+
+html, body {
+  margin: 0; padding: 0; background: #2a2622;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: calc(15px * var(--fs-scale));
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+button { font-family: inherit; }
+.hand { font-family: var(--font-hand); font-weight: 600; }
+
+.scroll-hide::-webkit-scrollbar { display: none; }
+.scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+.app {
+  width: 100%; height: 100%;
+  background: var(--bg); color: var(--ink);
+  overflow-y: auto; overflow-x: hidden; position: relative;
+}
+
+.tabbar {
+  display: flex; background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 6px 8px 10px; gap: 4px;
+}
+.tabbar button {
+  flex: 1; border: 0; background: transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 4px; color: var(--ink-faint); font-size: 11px;
+  cursor: pointer; border-radius: 10px;
+}
+.tabbar button.active { color: var(--coral); background: var(--coral-soft); }
+
+.card {
+  background: var(--surface); border-radius: var(--radius-lg);
+  padding: 16px; box-shadow: var(--shadow-card);
+  border: 1px solid var(--line-soft);
+}
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: var(--surface-muted); color: var(--ink-soft);
+}
+
+.btn {
+  border: 0; border-radius: 999px;
+  padding: 12px 18px; font-weight: 700; font-size: 14px;
+  cursor: pointer; font-family: inherit;
+}
+.btn-primary { background: var(--coral); color: #fff; }
+.btn-primary:disabled { background: var(--line); color: var(--ink-faint); cursor: not-allowed; }
+.btn-ghost { background: var(--surface-muted); color: var(--ink); }
+
+.avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+  background: var(--surface-muted); line-height: 1;
+}
+.avatar.lg { width: 56px; height: 56px; font-size: 30px; }
+.avatar.sm { width: 28px; height: 28px; font-size: 16px; }
+
+.member-dad { background: var(--coral-soft); }
+.member-mom { background: var(--olive-soft); }
+.member-daughter { background: var(--lavender-soft); }
+.member-son { background: var(--honey-soft); }
+
+.ai-card {
+  background: linear-gradient(135deg, var(--lavender-soft) 0%, var(--coral-soft) 100%);
+  border: 1px solid var(--lavender-soft);
+}
+.theme-dark .ai-card {
+  background: linear-gradient(135deg, rgba(154,143,176,0.18) 0%, rgba(217,143,108,0.16) 100%);
+  border: 1px solid var(--line);
+}
+
+.tag-conflict { background: var(--coral-soft); color: #8A4A2E; }
+.tag-important { background: var(--honey-soft); color: #7A5618; }
+.tag-habit { background: var(--olive-soft); color: #4A5A22; }
+.tag-daily { background: var(--lavender-soft); color: #4E4668; }
+.theme-dark .tag-conflict { color: #F3B499; }
+.theme-dark .tag-important { color: #E9C98B; }
+.theme-dark .tag-habit { color: #C5D49A; }
+.theme-dark .tag-daily { color: #C4B8D7; }
+
+.readonly-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  background: var(--lavender-soft); color: var(--ink-soft);
+  border-radius: 999px; font-size: 11px; font-weight: 700;
+}
+
+/* ========== stage ========== */
+.page {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(1200px 600px at 20% 0%, rgba(217,143,108,0.12), transparent 50%),
+    radial-gradient(1000px 500px at 80% 100%, rgba(154,143,176,0.12), transparent 50%),
+    #2a2622;
+}
+.device-wrap { position: relative; }
+.canvas-label {
+  position: absolute; top: -28px; left: 0;
+  color: rgba(255,255,255,0.55); font-family: 'Nunito';
+  font-size: 12px; font-weight: 700; letter-spacing: 1px;
+}
+.phone-frame {
+  width: 380px; height: 820px;
+  background: #0b0b0b; border-radius: 44px; padding: 12px;
+  box-shadow:
+    0 0 0 2px #1a1815,
+    0 40px 100px rgba(0,0,0,0.5),
+    inset 0 0 0 2px rgba(255,255,255,0.04);
+  position: relative;
+}
+.phone-inner {
+  width: 100%; height: 100%;
+  border-radius: 34px; overflow: hidden;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  position: relative;
+}
+.status-bar {
+  height: 28px; padding: 6px 22px 0;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Nunito'; font-size: 12px; font-weight: 700; color: var(--ink);
+  background: var(--bg-soft); flex-shrink: 0;
+}
+.notch {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  width: 100px; height: 26px; background: #0b0b0b;
+  border-radius: 0 0 14px 14px; z-index: 100;
+}
+.bottom-bar-spacer { height: 8px; background: var(--bg); }
+
+.scene-switcher {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 9998;
+  background: rgba(42, 38, 34, 0.92); backdrop-filter: blur(12px);
+  color: #f4ecde; border: 1px solid rgba(255,255,255,0.12);
+  padding: 6px; border-radius: 999px;
+  display: flex; gap: 2px; flex-wrap: wrap; max-width: 92vw;
+  font-family: 'Nunito'; font-size: 12px; font-weight: 700;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+}
+.scene-switcher button {
+  border: 0; background: transparent; color: #f4ecde; opacity: 0.6;
+  padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 700;
+}
+.scene-switcher button.active { background: #D98F6C; opacity: 1; color: #fff; }
+
+.tweak-toggle {
+  position: fixed; right: 24px; top: 24px; z-index: 9999;
+  background: #3a332b; color: #f4ecde; border: 1px solid rgba(255,255,255,0.1);
+  padding: 8px 14px; border-radius: 999px; font-family: ui-monospace, Menlo;
+  font-size: 11px; font-weight: 700; letter-spacing: 1px; cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div id="root"></div>
+</div>
+<button class="tweak-toggle" id="tweakToggle">TWEAKS</button>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+/* ========== icons ========== */
+const Icon = ({ name, size = 20, color = 'currentColor', style = {} }) => {
+  const s = { width: size, height: size, display: 'inline-block', verticalAlign: 'middle', ...style };
+  const common = {
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    stroke: color, strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round',
+  };
+  switch (name) {
+    case 'home': return (<svg {...common} style={s}><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>);
+    case 'list': return (<svg {...common} style={s}><path d="M4 6h16M4 12h16M4 18h10"/></svg>);
+    case 'plus': return (<svg {...common} style={s}><path d="M12 5v14M5 12h14"/></svg>);
+    case 'chart': return (<svg {...common} style={s}><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-6M12 16V8M16 16v-4"/></svg>);
+    case 'bell': return (<svg {...common} style={s}><path d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 004 0"/></svg>);
+    case 'sparkle': return (<svg {...common} style={s}><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M19 15l.7 2L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-1z"/></svg>);
+    case 'heart': return (<svg {...common} style={s}><path d="M20.8 5.6a5.5 5.5 0 00-7.8 0L12 6.6l-1-1a5.5 5.5 0 10-7.8 7.8l1 1L12 22l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>);
+    case 'chat': return (<svg {...common} style={s}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>);
+    case 'clock': return (<svg {...common} style={s}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>);
+    case 'arrow-right': return (<svg {...common} style={s}><path d="M5 12h14M13 6l6 6-6 6"/></svg>);
+    case 'arrow-left': return (<svg {...common} style={s}><path d="M19 12H5M11 6l-6 6 6 6"/></svg>);
+    case 'check': return (<svg {...common} style={s}><path d="M5 12l5 5L20 7"/></svg>);
+    case 'close': return (<svg {...common} style={s}><path d="M6 6l12 12M18 6L6 18"/></svg>);
+    case 'lock': return (<svg {...common} style={s}><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 118 0v4"/></svg>);
+    case 'eye': return (<svg {...common} style={s}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>);
+    case 'edit': return (<svg {...common} style={s}><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 113 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>);
+    case 'calendar': return (<svg {...common} style={s}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>);
+    case 'book': return (<svg {...common} style={s}><path d="M4 4h11a4 4 0 014 4v13H8a4 4 0 01-4-4V4z"/><path d="M4 17h13"/></svg>);
+    case 'family': return (<svg {...common} style={s}><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5"/><path d="M15 20c0-2 2-4 4-4s2 1 2 2"/></svg>);
+    case 'more': return (<svg {...common} style={s}><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>);
+    case 'mic': return (<svg {...common} style={s}><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 19v3"/></svg>);
+    case 'send': return (<svg {...common} style={s}><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>);
+    default: return null;
+  }
+};
+
+/* ========== data: family members ========== */
+const FAMILY = {
+  dad: {
+    id: 'dad', name: '爸爸', nickname: '老陈', emoji: '👨', cls: 'member-dad',
+    role: 'editor', tag: '编辑者',
+    age: 42, birthday: '1984-03-12', zodiac: '♓',
+    occupation: '软件架构师',
+    company: '一家互联网公司 · 技术团队',
+    workHours: '周一至周五 09:30 – 19:30（常加班到 21:00）',
+    commute: '通勤 45 分钟 · 地铁',
+    mbti: 'INTJ',
+    strengths: ['逻辑清晰', '动手能力强', '耐心'],
+    improvements: ['容易忽略情绪表达', '周末容易看手机过久'],
+    hobbies: ['摄影', '骑行', '科幻小说', '做木工'],
+    favFood: '手冲咖啡 · 家里妈妈做的红烧肉',
+    recordCount: 42,
+  },
+  mom: {
+    id: 'mom', name: '妈妈', nickname: '小林', emoji: '👩', cls: 'member-mom',
+    role: 'editor', tag: '编辑者',
+    age: 39, birthday: '1987-06-20', zodiac: '♊',
+    occupation: '中学语文老师',
+    company: '市第三中学 · 初二年级',
+    workHours: '周一至周五 07:40 – 17:30（周三有晚自习到 20:30）',
+    commute: '通勤 15 分钟 · 电瓶车',
+    mbti: 'ENFJ',
+    strengths: ['共情力强', '会做饭', '时间规划好'],
+    improvements: ['对孩子成绩偶尔过于焦虑', '不太会拒绝同事'],
+    hobbies: ['插花', '瑜伽', '读散文', '看《向往的生活》'],
+    favFood: '抹茶蛋糕 · 清蒸鲈鱼',
+    recordCount: 38,
+  },
+  daughter: {
+    id: 'daughter', name: '女儿', nickname: '小米', emoji: '👧', cls: 'member-daughter',
+    role: 'viewer', tag: '查看者',
+    age: 12, birthday: '2013-09-08', zodiac: '♍',
+    occupation: '初一学生',
+    company: '市实验中学 · 初一 (3) 班',
+    workHours: '在校 07:50 – 16:40 · 晚自习 自愿到 19:00',
+    commute: '步行 10 分钟',
+    grade: {
+      rank: '年级前 30',
+      subjects: [
+        { k: '语文', s: 92, trend: 'up' },
+        { k: '数学', s: 85, trend: 'flat' },
+        { k: '英语', s: 95, trend: 'up' },
+        { k: '物理', s: 78, trend: 'down' },
+      ],
+    },
+    mbti: 'INFP',
+    strengths: ['文笔好', '观察力细腻', '有责任感'],
+    improvements: ['物理有点吃力', '偶尔熬夜看书', '情绪比较敏感'],
+    hobbies: ['画画', '看小说（最近在读《夏洛的网》）', '养多肉', '追动画'],
+    favFood: '芒果布丁 · 番茄鸡蛋面',
+    recordCount: 28,
+  },
+  son: {
+    id: 'son', name: '儿子', nickname: '小宝', emoji: '👦', cls: 'member-son',
+    role: 'viewer', tag: '查看者',
+    age: 8, birthday: '2017-11-25', zodiac: '♐',
+    occupation: '二年级学生',
+    company: '市实验小学 · 二年级 (1) 班',
+    workHours: '在校 08:10 – 15:30 · 托管到 17:00',
+    commute: '妈妈接送 · 车程 10 分钟',
+    grade: {
+      rank: '班级前 10',
+      subjects: [
+        { k: '语文', s: 95, trend: 'flat' },
+        { k: '数学', s: 98, trend: 'up' },
+        { k: '英语', s: 88, trend: 'up' },
+      ],
+    },
+    mbti: 'ESFP',
+    strengths: ['活泼', '数感强', '乐于分享'],
+    improvements: ['坐不住', '写字有点潦草', '挑食'],
+    hobbies: ['乐高（最爱城堡系列）', '恐龙百科', '足球', '拼图'],
+    favFood: '炸鸡块 · 草莓 · 巧克力牛奶',
+    recordCount: 20,
+  },
+};
+
+const MEMBERS_LIST = [FAMILY.dad, FAMILY.mom, FAMILY.daughter, FAMILY.son];
+
+const EVENT_TYPES = {
+  conflict:  { key: 'conflict',  label: '冲突', emoji: '🫧', cls: 'tag-conflict' },
+  important: { key: 'important', label: '重要', emoji: '🌟', cls: 'tag-important' },
+  habit:     { key: 'habit',     label: '习惯', emoji: '🌱', cls: 'tag-habit' },
+  daily:     { key: 'daily',     label: '日常', emoji: '🍵', cls: 'tag-daily' },
+};
+
+const EVENTS = [
+  { id: 'e1', type: 'conflict',
+    title: '作业时间又起了小争执',
+    desc: '晚饭后女儿想先看一集动画再写作业，妈妈希望先完成数学作业，两人僵持了 20 分钟。',
+    members: ['mom', 'daughter'], author: 'mom',
+    time: '今天 19:42', date: '2026-04-20', mood: '着急',
+    aiSummary: '关于"先玩还是先学"的节奏分歧，双方都没错，只是节奏不同。',
+    aiCause: [
+      '妈妈担心拖到太晚影响睡眠',
+      '女儿需要一个明确的"喘息窗口"来切换状态',
+      '规则是单方面制定的，女儿没有参与感',
+    ],
+    aiSuggest: [
+      '一起商定一个"30 分钟缓冲时段"，女儿自主安排',
+      '把作业拆成两段，中间允许一次短休',
+      '晚饭时预告节奏，减少临场对抗',
+    ],
+    aiScript: '"宝贝，我知道你看动画很期待。我们一起定个时间好吗？看 20 分钟，然后一起写数学，写完妈妈陪你再看 10 分钟。"',
+  },
+  { id: 'e2', type: 'important',
+    title: '儿子第一次独立完成拼图',
+    desc: '200 片的城堡拼图，花了整整一下午，没有求助一次。',
+    members: ['son', 'dad'], author: 'dad',
+    time: '今天 16:10', date: '2026-04-20', mood: '骄傲',
+    aiSummary: '儿子在专注力和耐心上有了一次关键突破，值得被认真记住。',
+    aiSuggest: [
+      '把拼图拍下来做成纪念墙的一部分',
+      '今晚睡前用具体的话语夸奖（不是"真棒"而是"你中间卡住那次没放弃"）',
+      '下周可以一起挑战 300 片',
+    ],
+  },
+  { id: 'e3', type: 'habit',
+    title: '一家人连续 5 天 22:00 前上床',
+    desc: '本周目标达成！孩子们睡眠时间比上周早了平均 40 分钟。',
+    members: ['dad', 'mom', 'daughter', 'son'], author: 'mom',
+    time: '今天 07:30', date: '2026-04-20',
+    aiSummary: '早睡习惯正在形成，关键是全家同步而不是孤立要求孩子。',
+  },
+  { id: 'e4', type: 'daily',
+    title: '儿子在车里突然说"我喜欢星期天"',
+    desc: '问他为什么，他说因为"全家人都在"。',
+    members: ['son'], author: 'dad',
+    time: '昨天 18:20', date: '2026-04-19',
+    aiSummary: '孩子在寻找"全家一起"的确定感，这是家庭仪式的契机。',
+  },
+  { id: 'e5', type: 'conflict',
+    title: '关于手机使用时间',
+    desc: '女儿希望周末多半小时，爸爸觉得最近作业质量下降不同意。',
+    members: ['dad', 'daughter'], author: 'dad',
+    time: '昨天 21:05', date: '2026-04-19', mood: '失望',
+    aiSummary: '手机不是问题本身，是信任和自主权的谈判桌。',
+  },
+  { id: 'e6', type: 'important',
+    title: '结婚 15 周年纪念日',
+    desc: '下周五，打算订那家第一次约会的小馆子。',
+    members: ['dad', 'mom'], author: 'dad',
+    time: '昨天 10:00', date: '2026-04-19',
+    aiSummary: '别忘了告诉孩子们——让孩子看到父母的爱，是最好的教育。',
+  },
+  { id: 'e7', type: 'habit',
+    title: '女儿坚持阅读 30 分钟 · 第 12 天',
+    desc: '今天读的是《夏洛的网》。',
+    members: ['daughter'], author: 'mom',
+    time: '前天 20:40', date: '2026-04-18',
+  },
+  { id: 'e8', type: 'daily',
+    title: '周末一起包饺子',
+    desc: '儿子负责揉面，女儿负责捏造型，做出了独角兽和小船。',
+    members: ['dad', 'mom', 'daughter', 'son'], author: 'mom',
+    time: '前天 12:30', date: '2026-04-18',
+  },
+];
+
+const DAILY_REPORT = {
+  date: '4 月 20 日 · 周一',
+  highlight: '今天全家有 3 件值得记住的小事，1 个需要关心的小摩擦。',
+  good: ['儿子第一次独立完成 200 片拼图', '一家人连续 5 天按时入睡'],
+  watch: ['作业时间的节奏分歧，已连续出现 3 天'],
+  tip: '今晚可以试试"先 20 分钟自由，再一起写作业"的节奏，把规则变成约定。',
+};
+
+const AI_ADVICE = [
+  { id: 'a1', kind: '沟通', for: 'mom',
+    title: '和女儿谈作业节奏',
+    body: '不要开场就说"快去写作业"。先问"你打算怎么安排今晚？"把选择权还给她。',
+    action: '试试这个开场' },
+  { id: 'a2', kind: '习惯', for: 'family',
+    title: '建立"餐后 10 分钟家庭闲聊"',
+    body: '每人说一件今天的小事。能显著减少冲突，增强归属感。',
+    action: '加入今日日程' },
+  { id: 'a3', kind: '沟通', for: 'dad',
+    title: '夸奖儿子时要具体',
+    body: '不说"真棒"，说"你卡住那次没放弃，这个过程我看到了"。',
+    action: '今晚试试' },
+];
+
+/* ========== perspective ========== */
+const REL_MAP = {
+  dad:      { dad: '我',    mom: '老婆',  daughter: '女儿', son: '儿子' },
+  mom:      { dad: '老公',  mom: '我',    daughter: '女儿', son: '儿子' },
+  daughter: { dad: '爸爸',  mom: '妈妈',  daughter: '我',   son: '弟弟' },
+  son:      { dad: '爸爸',  mom: '妈妈',  daughter: '姐姐', son: '我' },
+};
+
+const relabel = (text, viewerId) => {
+  if (!text || !viewerId) return text;
+  const map = REL_MAP[viewerId] || REL_MAP.dad;
+  let result = text;
+  const pairs = [
+    ['爸爸', map.dad], ['妈妈', map.mom],
+    ['女儿', map.daughter], ['儿子', map.son],
+  ];
+  for (const [from, to] of pairs) {
+    if (from !== to) result = result.split(from).join(to);
+  }
+  return result;
+};
+
+const displayName = (memberId, viewerId) => {
+  if (!viewerId || viewerId === memberId) return FAMILY[memberId]?.name;
+  return (REL_MAP[viewerId] && REL_MAP[viewerId][memberId]) || FAMILY[memberId]?.name;
+};
+
+const visibleEvents = (viewerId) => {
+  const user = FAMILY[viewerId];
+  if (!user) return EVENTS;
+  if (user.role === 'editor') return EVENTS;
+  return EVENTS.filter(e => e.members.includes(viewerId));
+};
+
+const localizeEvent = (event, viewerId) => {
+  if (!event) return event;
+  const localized = { ...event };
+  ['title', 'desc', 'aiSummary', 'aiScript'].forEach(k => {
+    if (localized[k]) localized[k] = relabel(localized[k], viewerId);
+  });
+  if (localized.aiCause) localized.aiCause = localized.aiCause.map(s => relabel(s, viewerId));
+  if (localized.aiSuggest) localized.aiSuggest = localized.aiSuggest.map(s => relabel(s, viewerId));
+  return localized;
+};
+
+const getDailyReport = (viewerId) => {
+  const user = FAMILY[viewerId];
+  if (!user || user.role === 'editor') {
+    return {
+      ...DAILY_REPORT,
+      title: '家庭小报告',
+      highlight: relabel(DAILY_REPORT.highlight, viewerId),
+      good: DAILY_REPORT.good.map(s => relabel(s, viewerId)),
+      watch: DAILY_REPORT.watch.map(s => relabel(s, viewerId)),
+      tip: relabel(DAILY_REPORT.tip, viewerId),
+    };
+  }
+  if (viewerId === 'son') {
+    return {
+      title: '我的小日报', date: DAILY_REPORT.date,
+      highlight: '今天你有 1 件超棒的事 ✨，也有一个小进步正在发生！',
+      good: ['你第一次独立完成了 200 片拼图 🧩', '全家连续 5 天准时睡觉，你也是！'],
+      watch: [],
+      tip: '今天睡前可以画一幅拼图城堡，把这件厉害的事留下来~',
+    };
+  }
+  if (viewerId === 'daughter') {
+    return {
+      title: '我的小日报', date: DAILY_REPORT.date,
+      highlight: '今天你有 1 个好习惯在坚持 🌱，也有 1 件和妈妈的小摩擦可以聊聊。',
+      good: ['阅读已经连续 12 天啦，你真的很有毅力'],
+      watch: ['和妈妈关于作业时间的分歧，其实你们都在乎对方'],
+      tip: '可以主动和妈妈聊聊：你希望怎么安排晚上的时间？',
+    };
+  }
+  return DAILY_REPORT;
+};
+
+const getAdviceForViewer = (viewerId) => {
+  const user = FAMILY[viewerId];
+  if (!user) return AI_ADVICE;
+  if (user.role === 'editor') {
+    return AI_ADVICE.map(a => ({
+      ...a,
+      title: relabel(a.title, viewerId),
+      body: relabel(a.body, viewerId),
+    }));
+  }
+  if (viewerId === 'son') {
+    return [
+      { id: 's1', kind: '习惯', for: 'son', title: '把拼图的耐心用到写字上',
+        body: '你能坚持拼完 200 片城堡——写字也可以这样，一笔一笔慢慢来，不着急。', action: '今天试试' },
+      { id: 's2', kind: '沟通', for: 'son', title: '想吃草莓，可以直接说',
+        body: '妈妈不是读心术大师，你想要什么直接告诉她，她会很开心。', action: '知道啦' },
+      { id: 's3', kind: '习惯', for: 'son', title: '吃饭时试试青菜',
+        body: '挑食这件事不用一口气改掉，每顿饭吃一筷子新的菜就行~', action: '小目标' },
+    ];
+  }
+  if (viewerId === 'daughter') {
+    return [
+      { id: 'd1', kind: '沟通', for: 'daughter', title: '和妈妈说说你的想法',
+        body: '妈妈不是想管你，她只是担心你睡眠。试着主动告诉她你的计划，她会更放心。', action: '试试' },
+      { id: 'd2', kind: '习惯', for: 'daughter', title: '物理不是你不行',
+        body: '物理需要"画出来"理解，试试每道题先画一个小示意图再动笔。', action: '今晚试试' },
+      { id: 'd3', kind: '习惯', for: 'daughter', title: '阅读习惯保持得真棒',
+        body: '《夏洛的网》读完后，要不要把最打动你的一句话写在你的小本子上？', action: '好主意' },
+    ];
+  }
+  return AI_ADVICE;
+};
+
+/* ========== shared components ========== */
+const Avatar = ({ member, size = 'md' }) => {
+  const m = typeof member === 'string' ? FAMILY[member] : member;
+  if (!m) return null;
+  return <span className={`avatar ${size} ${m.cls}`}>{m.emoji}</span>;
+};
+
+const MemberStack = ({ ids, size = 'sm' }) => (
+  <span style={{ display: 'inline-flex' }}>
+    {ids.map((id, i) => (
+      <span key={id} style={{ marginLeft: i === 0 ? 0 : -8, border: '2px solid var(--surface)', borderRadius: '50%', display: 'inline-flex' }}>
+        <Avatar member={id} size={size}/>
+      </span>
+    ))}
+  </span>
+);
+
+const TypeTag = ({ type }) => {
+  const t = EVENT_TYPES[type];
+  if (!t) return null;
+  return <span className={`chip ${t.cls}`}><span>{t.emoji}</span>{t.label}</span>;
+};
+
+const ReadOnlyBanner = ({ who }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '8px 14px', background: 'var(--lavender-soft)',
+    color: 'var(--ink-soft)', fontSize: 12, fontWeight: 600,
+  }}>
+    <Icon name="eye" size={14}/> 你正在以 <b style={{ color: 'var(--ink)' }}>{who.name}（{who.tag}）</b> 的身份浏览 · 仅查看
+  </div>
+);
+
+const HomeHeader = ({ currentUser, date, onOpenMember }) => (
+  <div style={{
+    padding: '18px 20px 24px',
+    background: 'linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%)',
+    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div>
+        <div style={{ fontSize: 12, color: 'var(--ink-faint)', letterSpacing: 1 }}>{date}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4, color: 'var(--ink)' }}>
+          早上好, {currentUser.name}
+        </div>
+        <div className="hand" style={{ fontSize: 22, color: 'var(--coral)', marginTop: 2, lineHeight: 1 }}>
+          {currentUser.role === 'viewer' ? '今天也要加油喔 ·' : '今天是充满温度的一天 ·'}
+        </div>
+      </div>
+      <button style={{
+        position: 'relative', border: 0, background: 'var(--surface)',
+        width: 40, height: 40, borderRadius: '50%',
+        boxShadow: 'var(--shadow-soft)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--ink-soft)',
+      }}>
+        <Icon name="bell" size={18}/>
+        <span style={{
+          position: 'absolute', top: 8, right: 9, width: 8, height: 8,
+          background: 'var(--coral)', borderRadius: '50%',
+          border: '2px solid var(--surface)',
+        }}/>
+      </button>
+    </div>
+    <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'space-between' }}>
+      {MEMBERS_LIST.map(m => (
+        <button key={m.id} onClick={() => onOpenMember && onOpenMember(m.id)} style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+          border: 0, background: 'transparent', cursor: 'pointer', padding: 0,
+        }}>
+          <Avatar member={m} size="lg"/>
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>{m.name}</div>
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const StatStrip = ({ events, currentUser }) => {
+  const countBy = (k) => events.filter(e => e.type === k).length;
+  const isKid = currentUser && currentUser.role === 'viewer';
+  const stats = isKid ? [
+    { label: '我的事件', value: events.length, color: 'var(--ink)' },
+    { label: '重要', value: countBy('important'), color: 'var(--honey)' },
+    { label: '习惯', value: countBy('habit'), color: 'var(--olive)' },
+    { label: '日常', value: countBy('daily'), color: 'var(--lavender)' },
+  ] : [
+    { label: '今日事件', value: events.filter(e => e.date === '2026-04-20').length, color: 'var(--ink)' },
+    { label: '冲突', value: countBy('conflict'), color: 'var(--coral)' },
+    { label: '重要', value: countBy('important'), color: 'var(--honey)' },
+    { label: '习惯', value: countBy('habit'), color: 'var(--olive)' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 8, padding: '16px 16px 0' }}>
+      {stats.map(s => (
+        <div key={s.label} className="card" style={{ flex: 1, padding: '12px 8px', textAlign: 'center', borderRadius: 14 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+          <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>{s.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const DailyReportCard = ({ onOpen, report, currentUser }) => (
+  <div className="card ai-card" style={{ margin: '16px', padding: 18 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: 'var(--lavender)', color: '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon name="sparkle" size={16}/>
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600, letterSpacing: 0.5 }}>AI · {report.title || '家庭小报告'}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{report.date}</div>
+      </div>
+      <div className="chip" style={{ background: 'rgba(255,255,255,0.55)', color: 'var(--ink)' }}>07:30 推送</div>
+    </div>
+    <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.6, fontWeight: 600 }}>
+      {report.highlight}
+    </div>
+    <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {report.good.map((t, i) => (
+        <div key={'g'+i} style={{ display: 'flex', gap: 8, fontSize: 13, color: 'var(--ink-soft)', alignItems: 'flex-start' }}>
+          <span style={{ color: 'var(--olive)', marginTop: 2 }}>✓</span>{t}
+        </div>
+      ))}
+      {report.watch.map((t, i) => (
+        <div key={'w'+i} style={{ display: 'flex', gap: 8, fontSize: 13, color: 'var(--ink-soft)', alignItems: 'flex-start' }}>
+          <span style={{ color: 'var(--coral)', marginTop: 2 }}>·</span>{t}
+        </div>
+      ))}
+    </div>
+    <div style={{
+      marginTop: 12, padding: 12,
+      background: 'rgba(255,255,255,0.55)', borderRadius: 12,
+      fontSize: 13, color: 'var(--ink)', lineHeight: 1.55,
+    }}>
+      <b style={{ color: 'var(--coral)' }}>{currentUser && currentUser.role === 'viewer' ? '给你的小建议 · ' : '今日小建议 · '}</b>{report.tip}
+    </div>
+    <button className="btn btn-ghost" onClick={onOpen} style={{
+      marginTop: 14, width: '100%', background: 'rgba(255,255,255,0.7)',
+    }}>
+      查看完整建议 →
+    </button>
+  </div>
+);
+
+const EventRow = ({ event, onOpen, compact, currentUser }) => {
+  const t = EVENT_TYPES[event.type];
+  const localEvent = currentUser ? localizeEvent(event, currentUser.id) : event;
+  const bgTone = event.type === 'conflict' ? 'coral' : event.type === 'important' ? 'honey' : event.type === 'habit' ? 'olive' : 'lavender';
+  return (
+    <button onClick={() => onOpen(event)} style={{
+      width: '100%', background: 'var(--surface)',
+      textAlign: 'left', padding: 14, borderRadius: 18,
+      boxShadow: 'var(--shadow-soft)', display: 'flex', gap: 12, alignItems: 'flex-start',
+      cursor: 'pointer', border: '1px solid var(--line-soft)',
+    }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: 12,
+        background: `var(--${bgTone}-soft)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 18, flexShrink: 0,
+      }}>{t.emoji}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <TypeTag type={event.type}/>
+          <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{event.time}</span>
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>{localEvent.title}</div>
+        {!compact && localEvent.desc && (
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4, lineHeight: 1.5,
+            overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
+            WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+          }}>{localEvent.desc}</div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <MemberStack ids={event.members} size="sm"/>
+          {event.aiSummary && (
+            <span style={{ fontSize: 10, color: 'var(--lavender)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Icon name="sparkle" size={11}/> AI 已分析
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+};
+
+/* ========== screens: home ========== */
+const AdviceCard = ({ advice, currentUser }) => {
+  const accent = advice.kind === '沟通' ? 'var(--lavender)' : 'var(--olive)';
+  const accentSoft = advice.kind === '沟通' ? 'var(--lavender-soft)' : 'var(--olive-soft)';
+  return (
+    <div className="card" style={{ padding: 14, borderLeft: `3px solid ${accent}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span className="chip" style={{ background: accentSoft, color: accent, fontWeight: 700 }}>
+          {advice.kind === '沟通' ? '💬 沟通' : '🌱 习惯'}
+        </span>
+        {advice.for !== 'family' && advice.for !== currentUser?.id && FAMILY[advice.for] && (
+          <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
+            给 {displayName(advice.for, currentUser?.id)}
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{advice.title}</div>
+      <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 4, lineHeight: 1.55 }}>{advice.body}</div>
+      <button style={{
+        marginTop: 10, border: 0, background: 'transparent',
+        color: accent, fontSize: 12, fontWeight: 700, padding: 0,
+        display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+      }}>
+        {advice.action} <Icon name="arrow-right" size={12}/>
+      </button>
+    </div>
+  );
+};
+
+const HomeScreen = ({ currentUser, onOpenEvent, onNavigate, onOpenAdvice, onOpenMember }) => {
+  const myEvents = visibleEvents(currentUser.id);
+  const todayEvents = myEvents.filter(e => e.date === '2026-04-20').slice(0, 3)
+    .map(e => localizeEvent(e, currentUser.id));
+  const trending = getAdviceForViewer(currentUser.id).slice(0, 2);
+  const report = getDailyReport(currentUser.id);
+
+  return (
+    <div className="app scroll-hide">
+      <HomeHeader currentUser={currentUser} date="2026 年 4 月 20 日 · 周一" onOpenMember={onOpenMember}/>
+      <StatStrip events={myEvents} currentUser={currentUser}/>
+      <DailyReportCard onOpen={onOpenAdvice} report={report} currentUser={currentUser}/>
+
+      <div style={{ padding: '0 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '4px 4px 10px' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>{currentUser.role === 'editor' ? '今日事件' : '我的事件'}</div>
+            <div className="hand" style={{ fontSize: 16, color: 'var(--ink-faint)', lineHeight: 1 }}>Today · 每一件都值得</div>
+          </div>
+          <button onClick={() => onNavigate('timeline')} style={{
+            border: 0, background: 'transparent', color: 'var(--coral)',
+            fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer',
+          }}>全部 <Icon name="arrow-right" size={12}/></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {todayEvents.length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>
+              今天还没有与你相关的事件记录呢 🌿
+            </div>
+          )}
+          {todayEvents.map(e => <EventRow key={e.id} event={e} onOpen={onOpenEvent} currentUser={currentUser} compact/>)}
+        </div>
+      </div>
+
+      <div style={{ padding: '20px 16px 100px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '4px 4px 10px' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>给你的建议</div>
+            <div className="hand" style={{ fontSize: 16, color: 'var(--ink-faint)', lineHeight: 1 }}>For you · 小小一步</div>
+          </div>
+          <button onClick={onOpenAdvice} style={{
+            border: 0, background: 'transparent', color: 'var(--coral)',
+            fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer',
+          }}>更多 <Icon name="arrow-right" size={12}/></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {trending.map(a => <AdviceCard key={a.id} advice={a} currentUser={currentUser}/>)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ========== screens: timeline ========== */
+const TimelineScreen = ({ currentUser, onOpenEvent }) => {
+  const [filter, setFilter] = useState('all');
+
+  const myEvents = visibleEvents(currentUser.id).map(e => localizeEvent(e, currentUser.id));
+  const filtered = filter === 'all' ? myEvents : myEvents.filter(e => e.type === filter);
+
+  const grouped = filtered.reduce((acc, e) => {
+    (acc[e.date] = acc[e.date] || []).push(e);
+    return acc;
+  }, {});
+
+  const dayLabel = (d) => {
+    if (d === '2026-04-20') return '今天';
+    if (d === '2026-04-19') return '昨天';
+    if (d === '2026-04-18') return '前天';
+    return d;
+  };
+
+  const FILTERS = [
+    { key: 'all', label: '全部', emoji: '✨' },
+    { key: 'conflict', label: '冲突', emoji: EVENT_TYPES.conflict.emoji },
+    { key: 'important', label: '重要', emoji: EVENT_TYPES.important.emoji },
+    { key: 'habit', label: '习惯', emoji: EVENT_TYPES.habit.emoji },
+    { key: 'daily', label: '日常', emoji: EVENT_TYPES.daily.emoji },
+  ];
+
+  return (
+    <div className="app scroll-hide">
+      <div style={{
+        padding: '18px 20px 12px', background: 'var(--bg-soft)',
+        borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
+      }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)' }}>{currentUser.role === 'editor' ? '家庭时间线' : '我的时间线'}</div>
+        <div className="hand" style={{ fontSize: 20, color: 'var(--coral)', lineHeight: 1 }}>{currentUser.role === 'editor' ? 'Family · Memories' : 'My story · 我的故事'}</div>
+      </div>
+
+      <div style={{ padding: '14px 0 4px', position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 5 }}>
+        <div style={{ display: 'flex', gap: 8, padding: '0 16px', overflowX: 'auto' }} className="scroll-hide">
+          {FILTERS.map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)} style={{
+              border: 0, padding: '8px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+              background: filter === f.key ? 'var(--coral)' : 'var(--surface)',
+              color: filter === f.key ? '#fff' : 'var(--ink-soft)',
+              boxShadow: filter === f.key ? 'none' : 'var(--shadow-soft)',
+              whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
+            }}>{f.emoji} {f.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: '16px 16px 100px' }}>
+        {Object.keys(grouped).length === 0 && (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>
+            还没有这类事件呢 🌿
+          </div>
+        )}
+        {Object.keys(grouped).map(date => (
+          <div key={date} style={{ marginBottom: 24 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              margin: '0 4px 10px', fontSize: 13, color: 'var(--ink-soft)',
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', background: 'var(--surface)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: 'var(--shadow-soft)',
+              }}>
+                <Icon name="calendar" size={14} color="var(--coral)"/>
+              </div>
+              <span style={{ fontWeight: 800, color: 'var(--ink)' }}>{dayLabel(date)}</span>
+              <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>· {grouped[date].length} 条</span>
+            </div>
+            <div style={{ position: 'relative', paddingLeft: 14 }}>
+              <div style={{
+                position: 'absolute', left: 13, top: 8, bottom: 8,
+                width: 2, background: 'var(--line-soft)', borderRadius: 1,
+              }}/>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {grouped[date].map(e => {
+                  const dot = e.type === 'conflict' ? 'coral' : e.type === 'important' ? 'honey' : e.type === 'habit' ? 'olive' : 'lavender';
+                  return (
+                    <div key={e.id} style={{ position: 'relative', paddingLeft: 18 }}>
+                      <div style={{
+                        position: 'absolute', left: -1, top: 22, width: 10, height: 10,
+                        borderRadius: '50%',
+                        background: `var(--${dot})`,
+                        border: '3px solid var(--bg)',
+                      }}/>
+                      <EventRow event={e} onOpen={onOpenEvent}/>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ========== screens: add event ========== */
+const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
+  const [type, setType] = useState('conflict');
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [members, setMembers] = useState([currentUser.id]);
+  const [mood, setMood] = useState('');
+  const [aiGen, setAiGen] = useState(false);
+
+  const toggle = (id) => setMembers(m => m.includes(id) ? m.filter(x => x !== id) : [...m, id]);
+  const canSave = title.trim().length > 0 && members.length > 0 && !readOnly;
+
+  useEffect(() => {
+    if (desc.length > 20 && !aiGen) {
+      const t = setTimeout(() => setAiGen(true), 800);
+      return () => clearTimeout(t);
+    }
+    if (desc.length < 20) setAiGen(false);
+  }, [desc, aiGen]);
+
+  const MOODS = ['开心', '骄傲', '平静', '着急', '生气', '失望', '温暖', '疲惫'];
+
+  return (
+    <div className="app scroll-hide" style={{ background: 'var(--bg)' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 16px', background: 'var(--bg-soft)',
+        position: 'sticky', top: 0, zIndex: 10,
+      }}>
+        <button onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--ink-soft)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          <Icon name="close" size={18}/> 取消
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>记录一件事</div>
+        <button disabled={!canSave} onClick={() => onSave({ type, title, desc, members })}
+          className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }}>
+          保存
+        </button>
+      </div>
+
+      {readOnly && (
+        <div style={{ padding: '12px 16px', background: 'var(--coral-soft)', color: 'var(--ink)',
+          fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Icon name="lock" size={14}/> {currentUser.name} 是查看者，不能编辑事件。切换为爸爸/妈妈身份可记录。
+        </div>
+      )}
+
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14, opacity: readOnly ? 0.55 : 1, pointerEvents: readOnly ? 'none' : 'auto' }}>
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>事件类型</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {Object.values(EVENT_TYPES).map(t => (
+              <button key={t.key} onClick={() => setType(t.key)} style={{
+                border: type === t.key ? `2px solid var(--coral)` : `2px solid var(--line-soft)`,
+                background: type === t.key ? 'var(--coral-soft)' : 'var(--surface-muted)',
+                borderRadius: 14, padding: '10px 4px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                cursor: 'pointer',
+              }}>
+                <span style={{ fontSize: 22 }}>{t.emoji}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink)' }}>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 8 }}>一句话标题</div>
+          <input value={title} onChange={e => setTitle(e.target.value)}
+            placeholder="例如：作业时间的一次小争执" style={{
+              width: '100%', border: 0, background: 'transparent',
+              fontSize: 16, fontWeight: 600, color: 'var(--ink)',
+              outline: 'none', padding: '4px 0',
+            }}/>
+        </div>
+
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700 }}>描述一下当时的情景</div>
+            <button style={{ border: 0, background: 'transparent', color: 'var(--lavender)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}>
+              <Icon name="mic" size={12}/> 语音
+            </button>
+          </div>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)}
+            placeholder="发生了什么？谁说了什么？你当时的感受..." rows={4} style={{
+              width: '100%', border: 0, background: 'transparent', resize: 'none',
+              fontSize: 14, color: 'var(--ink)', outline: 'none', padding: 0,
+              fontFamily: 'inherit', lineHeight: 1.6,
+            }}/>
+          {aiGen && (
+            <div style={{
+              marginTop: 10, padding: 10, background: 'var(--lavender-soft)',
+              borderRadius: 10, display: 'flex', gap: 8, alignItems: 'flex-start',
+            }}>
+              <Icon name="sparkle" size={14} color="var(--lavender)" style={{ marginTop: 2 }}/>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: 'var(--lavender)', fontWeight: 700, marginBottom: 2 }}>AI 为你提炼</div>
+                <div style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.5 }}>
+                  "一次关于作息节奏的分歧，双方都只是用不同的方式关心同一件事。"
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>涉及的家人</div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+            {MEMBERS_LIST.map(m => {
+              const on = members.includes(m.id);
+              return (
+                <button key={m.id} onClick={() => toggle(m.id)} style={{
+                  border: 0, background: 'transparent', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  opacity: on ? 1 : 0.45, position: 'relative',
+                }}>
+                  <Avatar member={m} size="lg"/>
+                  {on && (
+                    <div style={{
+                      position: 'absolute', top: -2, right: -2,
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: 'var(--coral)', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '2px solid var(--surface)',
+                    }}>
+                      <Icon name="check" size={10}/>
+                    </div>
+                  )}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>{m.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {type === 'conflict' && (
+          <div className="card" style={{ padding: 14 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>你当时的情绪</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {MOODS.map(m => (
+                <button key={m} onClick={() => setMood(m)} style={{
+                  border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                  background: mood === m ? 'var(--coral)' : 'var(--surface-muted)',
+                  color: mood === m ? '#fff' : 'var(--ink-soft)',
+                  cursor: 'pointer',
+                }}>{m}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center', padding: '8px 0 80px' }}>
+          保存后 AI 将自动分析并给出建议 ✨
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ========== screens: event detail ========== */
+const EventDetailScreen = ({ event: rawEvent, onClose, currentUser }) => {
+  if (!rawEvent) return null;
+  const event = localizeEvent(rawEvent, currentUser.id);
+  const author = FAMILY[event.author];
+  const authorName = displayName(event.author, currentUser.id);
+  const heroTone = event.type === 'conflict' ? 'coral' : event.type === 'important' ? 'honey' : event.type === 'habit' ? 'olive' : 'lavender';
+
+  return (
+    <div className="app scroll-hide">
+      <div style={{
+        padding: '16px 16px 24px',
+        background: `linear-gradient(180deg, var(--${heroTone}-soft) 0%, var(--bg) 100%)`,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <button onClick={onClose} style={{
+            border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+          }}>
+            <Icon name="arrow-left" size={18}/>
+          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {currentUser.role === 'editor' ? (
+              <button style={{
+                border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+              }}><Icon name="edit" size={16}/></button>
+            ) : (
+              <span className="readonly-badge"><Icon name="eye" size={12}/> 仅查看</span>
+            )}
+            <button style={{
+              border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+            }}><Icon name="more" size={16}/></button>
+          </div>
+        </div>
+        <TypeTag type={event.type}/>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', marginTop: 10, lineHeight: 1.35 }}>
+          {event.title}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12, color: 'var(--ink-soft)', flexWrap: 'wrap' }}>
+          <Icon name="clock" size={13}/> {event.time}
+          {author && <><span style={{ color: 'var(--ink-faint)' }}>·</span><span>记录者 {author.emoji} {authorName}</span></>}
+          {event.mood && <><span style={{ color: 'var(--ink-faint)' }}>·</span><span>心情 {event.mood}</span></>}
+        </div>
+      </div>
+
+      <div style={{ padding: '4px 16px 100px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>涉及家人</div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {event.members.map(id => {
+              const m = FAMILY[id];
+              return (
+                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'var(--surface-muted)', padding: '6px 10px 6px 6px', borderRadius: 999 }}>
+                  <Avatar member={m} size="sm"/>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{displayName(id, currentUser.id)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {event.desc && (
+          <div className="card" style={{ padding: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 8 }}>当时发生了什么</div>
+            <div style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7 }}>{event.desc}</div>
+          </div>
+        )}
+
+        {event.aiSummary && (
+          <div className="card ai-card" style={{ padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', background: 'var(--lavender)', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}><Icon name="sparkle" size={15}/></div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>AI 温柔分析</div>
+              <span className="chip" style={{ background: 'rgba(255,255,255,0.6)', color: 'var(--ink-soft)', marginLeft: 'auto', fontSize: 10 }}>已更新</span>
+            </div>
+            <div style={{
+              padding: 12, background: 'rgba(255,255,255,0.6)', borderRadius: 12,
+              fontSize: 14, color: 'var(--ink)', lineHeight: 1.6, fontWeight: 600,
+            }}>
+              "{event.aiSummary}"
+            </div>
+
+            {event.aiCause && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', marginBottom: 8 }}>🔍 可能的原因</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {event.aiCause.map((c, i) => (
+                    <div key={i} style={{
+                      display: 'flex', gap: 8, padding: '8px 10px',
+                      background: 'rgba(255,255,255,0.5)', borderRadius: 10,
+                      fontSize: 13, color: 'var(--ink)', lineHeight: 1.5,
+                    }}>
+                      <span style={{ color: 'var(--lavender)', fontWeight: 800 }}>{i + 1}</span>{c}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {event.aiSuggest && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', marginBottom: 8 }}>💡 温柔的建议</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {event.aiSuggest.map((c, i) => (
+                    <div key={i} style={{
+                      display: 'flex', gap: 8, padding: '8px 10px',
+                      background: 'rgba(255,255,255,0.5)', borderRadius: 10,
+                      fontSize: 13, color: 'var(--ink)', lineHeight: 1.5,
+                    }}>
+                      <span style={{ color: 'var(--olive)' }}>✓</span>{c}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {event.aiScript && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', marginBottom: 8 }}>💬 可以这样开口</div>
+                <div style={{
+                  padding: 12, background: 'var(--surface)',
+                  border: '1px dashed var(--lavender)', borderRadius: 12,
+                  fontSize: 14, color: 'var(--ink)', lineHeight: 1.65, fontStyle: 'italic',
+                }}>
+                  {event.aiScript}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button className="btn btn-primary" style={{ flex: 1, fontSize: 13 }}>
+                <Icon name="heart" size={13} style={{ marginRight: 4 }}/>收藏建议
+              </button>
+              <button style={{
+                border: 0, background: 'rgba(255,255,255,0.6)', color: 'var(--ink)',
+                padding: '10px 14px', borderRadius: 999, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              }}>🔄 重新生成</button>
+            </div>
+          </div>
+        )}
+
+        {currentUser.role === 'editor' ? (
+          <div className="card" style={{ padding: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Avatar member={currentUser} size="sm"/>
+            <input placeholder="加一条备注..." style={{
+              flex: 1, border: 0, background: 'var(--surface-muted)',
+              padding: '10px 14px', borderRadius: 999, fontSize: 13, outline: 'none',
+              fontFamily: 'inherit',
+            }}/>
+            <button style={{ border: 0, background: 'var(--coral)', width: 36, height: 36, borderRadius: '50%',
+              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <Icon name="send" size={16}/>
+            </button>
+          </div>
+        ) : (
+          <div style={{
+            padding: 14, background: 'var(--surface-muted)', borderRadius: 16,
+            fontSize: 12, color: 'var(--ink-soft)', textAlign: 'center',
+          }}>
+            <Icon name="lock" size={12} style={{ marginRight: 4 }}/> 查看者不能添加备注，但可以给这条事件送个小心心 ❤️
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ========== screens: advice ========== */
+const AdviceScreen = ({ onBack, currentUser }) => {
+  const [tab, setTab] = useState('all');
+  const ALL = getAdviceForViewer(currentUser?.id);
+  const filtered = tab === 'all' ? ALL : ALL.filter(a => a.kind === tab);
+  const isKid = currentUser && currentUser.role === 'viewer';
+
+  return (
+    <div className="app scroll-hide">
+      <div style={{
+        padding: '16px 20px 20px',
+        background: 'linear-gradient(180deg, var(--lavender-soft) 0%, var(--bg) 100%)',
+      }}>
+        <button onClick={onBack} style={{
+          border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', marginBottom: 14, cursor: 'pointer',
+        }}><Icon name="arrow-left" size={18}/></button>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>{isKid ? '给我的小建议' : 'AI 建议中心'}</div>
+        <div className="hand" style={{ fontSize: 20, color: 'var(--lavender)', lineHeight: 1 }}>Gentle suggestions · 每天一点点</div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          {[{ k: 'all', l: '全部' }, { k: '沟通', l: '💬 沟通' }, { k: '习惯', l: '🌱 习惯' }].map(x => (
+            <button key={x.k} onClick={() => setTab(x.k)} style={{
+              border: 0, padding: '8px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+              background: tab === x.k ? 'var(--ink)' : 'var(--surface)',
+              color: tab === x.k ? 'var(--bg)' : 'var(--ink-soft)',
+              cursor: 'pointer',
+            }}>{x.l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: '14px 16px 100px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="card ai-card" style={{ padding: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>{isKid ? '这周的你' : '本周洞察'}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginTop: 6, lineHeight: 1.55 }}>
+            {isKid
+              ? <>你本周的关键词是<b style={{ color: 'var(--coral)' }}>"坚持"</b>，拼图上的你特别棒✨</>
+              : <>你们家这周的主题是<b style={{ color: 'var(--coral)' }}>"节奏"</b>。三次小摩擦都和时间安排有关，试试把规则变成一起制定的约定。</>}
+          </div>
+        </div>
+        {filtered.map(a => <AdviceCard key={a.id} advice={a} currentUser={currentUser}/>)}
+      </div>
+    </div>
+  );
+};
+
+/* ========== screens: settings ========== */
+const Toggle = ({ on: initial }) => {
+  const [on, setOn] = useState(initial);
+  return (
+    <button onClick={() => setOn(!on)} style={{
+      border: 0, width: 42, height: 24, borderRadius: 999,
+      background: on ? 'var(--coral)' : 'var(--line)',
+      position: 'relative', cursor: 'pointer', transition: 'background .2s',
+    }}>
+      <div style={{
+        position: 'absolute', top: 2, left: on ? 20 : 2,
+        width: 20, height: 20, borderRadius: '50%', background: '#fff',
+        transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }}/>
+    </button>
+  );
+};
+
+const SettingsScreen = ({ currentUser, onOpenMember }) => {
+  const PUSH_TIMES = [
+    { label: '早安小报告', time: '07:30', on: true },
+    { label: '睡前回顾', time: '21:30', on: true },
+    { label: '冲突即时建议', time: '触发时', on: false },
+  ];
+
+  return (
+    <div className="app scroll-hide">
+      <div style={{
+        padding: '18px 20px 24px', background: 'var(--bg-soft)',
+        borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
+      }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)' }}>我们家</div>
+        <div className="hand" style={{ fontSize: 20, color: 'var(--coral)', lineHeight: 1 }}>Our home · 一家四口</div>
+
+        <div style={{
+          marginTop: 16, padding: 14, background: 'var(--surface)',
+          borderRadius: 18, display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{ fontSize: 34 }}>🏡</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>温暖的四口之家</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>已记录 128 条事件 · 收到 42 条 AI 建议</div>
+          </div>
+          <div className="hand" style={{ fontSize: 28, color: 'var(--honey)' }}>128</div>
+        </div>
+      </div>
+
+      <div style={{ padding: '16px 16px 100px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 16px 8px', fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
+            <span>家庭成员</span>
+            {currentUser.role === 'editor' && <button style={{ border: 0, background: 'transparent', color: 'var(--coral)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ 邀请</button>}
+          </div>
+          {MEMBERS_LIST.map((m, i) => {
+            const isMe = m.id === currentUser.id;
+            return (
+              <button key={m.id} onClick={() => onOpenMember && onOpenMember(m.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: '12px 16px', border: 0, background: 'transparent', cursor: 'pointer',
+                textAlign: 'left', borderTop: i === 0 ? 0 : '1px solid var(--line-soft)',
+              }}>
+                <Avatar member={m} size="lg"/>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {m.name} <span style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500 }}>· {m.nickname}</span>
+                    {isMe && <span style={{ fontSize: 10, color: 'var(--coral)', fontWeight: 700, background: 'var(--coral-soft)', padding: '2px 6px', borderRadius: 999 }}>我</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+                    {m.age} 岁 · {m.occupation} · {m.recordCount} 条
+                  </div>
+                </div>
+                <div className="chip" style={{
+                  background: m.role === 'editor' ? 'var(--coral-soft)' : 'var(--lavender-soft)',
+                  color: m.role === 'editor' ? 'var(--coral)' : 'var(--lavender)',
+                }}>
+                  {m.role === 'editor' ? <><Icon name="edit" size={10}/>编辑者</> : <><Icon name="eye" size={10}/>查看者</>}
+                </div>
+                <Icon name="arrow-right" size={14} color="var(--ink-faint)"/>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{
+          padding: 12, background: 'var(--surface-muted)', borderRadius: 14,
+          fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.6,
+        }}>
+          <b style={{ color: 'var(--ink)' }}>权限说明：</b>爸爸妈妈可记录、编辑、删除事件；女儿和儿子可以查看所有事件、送心心、但不能编辑。让孩子看到家里的温度。
+        </div>
+
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 16px 8px', fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700 }}>每日 AI 推送</div>
+          {PUSH_TIMES.map((p, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 16px', borderTop: i === 0 ? 0 : '1px solid var(--line-soft)',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 12, background: 'var(--lavender-soft)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--lavender)',
+              }}><Icon name="bell" size={16}/></div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{p.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{p.time}</div>
+              </div>
+              <Toggle on={p.on}/>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {[
+            { icon: 'chart', label: '数据与趋势', sub: '查看本月情绪变化' },
+            { icon: 'book', label: '家庭纪念册', sub: '把重要事件整理成回忆' },
+            { icon: 'heart', label: 'AI 小助手设置', sub: '语气、推送偏好' },
+            { icon: 'lock', label: '隐私与安全', sub: '数据本地加密' },
+          ].map((it, i) => (
+            <button key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+              border: 0, background: 'transparent', width: '100%', textAlign: 'left',
+              borderTop: i === 0 ? 0 : '1px solid var(--line-soft)', cursor: 'pointer',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 12, background: 'var(--surface-muted)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--ink-soft)',
+              }}><Icon name={it.icon} size={16}/></div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{it.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{it.sub}</div>
+              </div>
+              <Icon name="arrow-right" size={14} color="var(--ink-faint)"/>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ========== screens: member detail ========== */
+const MiniStat = ({ label, value }) => (
+  <div style={{
+    flex: 1, background: 'var(--surface)', borderRadius: 14, padding: '10px 8px',
+    textAlign: 'center', boxShadow: 'var(--shadow-soft)',
+  }}>
+    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{value}</div>
+    <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>{label}</div>
+  </div>
+);
+
+const Section = ({ title, children }) => (
+  <div className="card" style={{ padding: 14 }}>
+    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', marginBottom: 10 }}>{title}</div>
+    {children}
+  </div>
+);
+
+const InfoRow = ({ label, value }) => (
+  <div style={{ display: 'flex', gap: 10, padding: '6px 0', fontSize: 13, lineHeight: 1.55 }}>
+    <div style={{ width: 72, color: 'var(--ink-faint)', flexShrink: 0 }}>{label}</div>
+    <div style={{ flex: 1, color: 'var(--ink)', fontWeight: 600 }}>{value}</div>
+  </div>
+);
+
+const TagRow = ({ items, color = 'coral' }) => (
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    {items.map((t, i) => (
+      <span key={i} className="chip" style={{
+        background: `var(--${color}-soft)`, color: 'var(--ink)', fontWeight: 600,
+      }}>{t}</span>
+    ))}
+  </div>
+);
+
+const aiPortrait = (m) => {
+  const map = {
+    dad: '理性、耐心的守护者。习惯用动手解决问题，情绪表达偏内敛——家人其实很期待你多说一句"我爱你"。',
+    mom: '温柔的掌舵人。共情力是你的超能力，但也请记得先照顾好自己，再去照顾全家。',
+    daughter: '细腻敏感的小作家。文字是你情绪的出口，物理只是暂时的，陪伴比成绩更重要。',
+    son: '热情四射的小太阳。数字感让你在数学上游刃有余，写字这件事可以慢慢来。',
+  };
+  return map[m.id] || '';
+};
+
+const MemberDetailScreen = ({ memberId, onBack }) => {
+  const m = FAMILY[memberId];
+  if (!m) return null;
+
+  const isKid = m.id === 'daughter' || m.id === 'son';
+  const accent = m.id === 'dad' ? 'coral' : m.id === 'mom' ? 'olive' : m.id === 'daughter' ? 'lavender' : 'honey';
+
+  return (
+    <div className="app scroll-hide">
+      <div style={{
+        padding: '16px 20px 28px',
+        background: `linear-gradient(180deg, var(--${accent}-soft) 0%, var(--bg) 100%)`,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <button onClick={onBack} style={{
+            border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+          }}><Icon name="arrow-left" size={18}/></button>
+          <button style={{
+            border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+          }}><Icon name="edit" size={15}/></button>
+        </div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <Avatar member={m} size="lg"/>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{m.name}</div>
+              <div className="hand" style={{ fontSize: 20, color: `var(--${accent})`, lineHeight: 1 }}>{m.nickname}</div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
+              {m.age} 岁 · {m.zodiac} · {m.mbti}
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+              <span className="chip" style={{ background: m.role === 'editor' ? 'var(--coral-soft)' : 'var(--lavender-soft)', color: 'var(--ink)' }}>
+                {m.role === 'editor' ? '✎ 编辑者' : '👁 查看者'}
+              </span>
+              <span className="chip">🎂 {m.birthday}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <MiniStat label="记录事件" value={m.recordCount}/>
+          <MiniStat label="收到建议" value={Math.round(m.recordCount * 0.4)}/>
+          <MiniStat label="习惯打卡" value={isKid ? 12 : 8}/>
+        </div>
+      </div>
+
+      <div style={{ padding: '16px 16px 100px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Section title={isKid ? '📚 学习' : '💼 工作'}>
+          <InfoRow label="身份" value={m.occupation}/>
+          <InfoRow label={isKid ? '学校班级' : '所在单位'} value={m.company}/>
+          <InfoRow label="时间" value={m.workHours}/>
+          <InfoRow label="通勤" value={m.commute}/>
+        </Section>
+
+        {m.grade && (
+          <Section title="📊 最近成绩">
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+              padding: '8px 12px', background: `var(--${accent}-soft)`, borderRadius: 10,
+              fontSize: 13, color: 'var(--ink)', fontWeight: 700,
+            }}>
+              🏆 {m.grade.rank}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {m.grade.subjects.map(s => {
+                const trendColor = s.trend === 'up' ? 'var(--olive)' : s.trend === 'down' ? 'var(--coral)' : 'var(--ink-faint)';
+                const trendArrow = s.trend === 'up' ? '↑' : s.trend === 'down' ? '↓' : '—';
+                return (
+                  <div key={s.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 44, fontSize: 13, color: 'var(--ink-soft)', fontWeight: 700 }}>{s.k}</div>
+                    <div style={{ flex: 1, height: 8, background: 'var(--surface-muted)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${s.s}%`, height: '100%',
+                        background: `var(--${accent})`, borderRadius: 999,
+                      }}/>
+                    </div>
+                    <div style={{ width: 48, textAlign: 'right', fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>
+                      {s.s}<span style={{ fontSize: 11, color: trendColor, marginLeft: 3 }}>{trendArrow}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        )}
+
+        <Section title="🌱 性格画像">
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>闪光点</div>
+          <TagRow items={m.strengths} color="olive"/>
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, margin: '14px 0 8px' }}>成长空间</div>
+          <TagRow items={m.improvements} color="coral"/>
+        </Section>
+
+        <Section title="❤️ 喜好">
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>爱好</div>
+          <TagRow items={m.hobbies} color={accent}/>
+          <InfoRow label="最爱吃" value={m.favFood}/>
+        </Section>
+
+        <div className="card ai-card" style={{ padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <Icon name="sparkle" size={14} color="var(--lavender)"/>
+            <div style={{ fontSize: 12, fontWeight: 800 }}>AI · {m.name}的关键词</div>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.6 }}>
+            {aiPortrait(m)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ========== tweaks panel ========== */
+const TweaksPanel = ({ open, onClose, settings, setSettings }) => {
+  if (!open) return null;
+  const update = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+
+  return (
+    <div style={{
+      position: 'fixed', right: 24, top: 68, zIndex: 10000,
+      width: 300, background: '#2a2622', color: '#f4ecde',
+      borderRadius: 18, padding: 16, fontFamily: 'ui-monospace, Menlo, monospace',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.1)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>TWEAKS</div>
+        <button onClick={onClose} style={{ border: 0, background: 'transparent', color: '#f4ecde', cursor: 'pointer' }}>✕</button>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6 }}>当前身份</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          {MEMBERS_LIST.map(m => (
+            <button key={m.id} onClick={() => update('userId', m.id)} style={{
+              border: 0, padding: '8px 10px', borderRadius: 10, cursor: 'pointer',
+              background: settings.userId === m.id ? '#D98F6C' : 'rgba(255,255,255,0.08)',
+              color: '#f4ecde', fontFamily: 'inherit', fontSize: 11,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{ fontSize: 16 }}>{m.emoji}</span>
+              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+                <div style={{ fontWeight: 700 }}>{m.name}</div>
+                <div style={{ opacity: 0.7, fontSize: 9 }}>{m.tag}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6 }}>外观模式</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['light', 'dark'].map(m => (
+            <button key={m} onClick={() => update('dark', m === 'dark')} style={{
+              flex: 1, border: 0, padding: '8px', borderRadius: 10, cursor: 'pointer',
+              background: settings.dark === (m === 'dark') ? '#D98F6C' : 'rgba(255,255,255,0.08)',
+              color: '#f4ecde', fontFamily: 'inherit', fontSize: 11,
+            }}>{m === 'light' ? '☀ 浅色' : '🌙 深色'}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6 }}>配色方案</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[
+            { k: 'default', l: '奶油', c: '#D98F6C' },
+            { k: 'mint', l: '薄荷', c: '#6FA78A' },
+            { k: 'rose', l: '玫瑰', c: '#D97461' },
+          ].map(p => (
+            <button key={p.k} onClick={() => update('palette', p.k)} style={{
+              flex: 1, border: settings.palette === p.k ? '2px solid #f4ecde' : '2px solid transparent',
+              padding: '8px 4px', borderRadius: 10, cursor: 'pointer',
+              background: 'rgba(255,255,255,0.08)', color: '#f4ecde', fontFamily: 'inherit', fontSize: 11,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: p.c }}/>
+              {p.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6 }}>字号：{Math.round(settings.fontScale * 100)}%</div>
+        <input type="range" min="0.85" max="1.2" step="0.05"
+          value={settings.fontScale} onChange={e => update('fontScale', parseFloat(e.target.value))}
+          style={{ width: '100%' }}/>
+      </div>
+
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)',
+        fontSize: 10, opacity: 0.5, lineHeight: 1.5 }}>
+        切换查看者身份（女儿/儿子）可体验只读权限下的界面差异。
+      </div>
+    </div>
+  );
+};
+
+/* ========== phone frame + nav ========== */
+const StatusBar = () => (
+  <div className="status-bar">
+    <span>9:30</span>
+    <span style={{ display: 'flex', gap: 6, fontSize: 11 }}>
+      <span>●●●</span><span>📶</span><span>🔋</span>
+    </span>
+  </div>
+);
+
+const Phone = ({ children, label }) => (
+  <div className="device-wrap" data-screen-label={label}>
+    <div className="canvas-label">{label}</div>
+    <div className="phone-frame">
+      <div className="notch"/>
+      <div className="phone-inner">
+        <StatusBar/>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+          {children}
+        </div>
+        <div className="bottom-bar-spacer"/>
+      </div>
+    </div>
+  </div>
+);
+
+const BottomNav = ({ active, onChange, onAdd, currentUser }) => {
+  const isViewer = currentUser && currentUser.role === 'viewer';
+  const allItems = [
+    { k: 'home', l: '首页', i: 'home' },
+    { k: 'timeline', l: '时间线', i: 'list' },
+    { k: 'add', l: '', i: 'plus', special: true },
+    { k: 'advice', l: '建议', i: 'sparkle' },
+    { k: 'settings', l: '我们家', i: 'family' },
+  ];
+  const items = isViewer ? allItems.filter(it => it.k !== 'add') : allItems;
+  return (
+    <div className="tabbar" style={{ position: 'relative', flexShrink: 0 }}>
+      {items.map(it => {
+        if (it.special) {
+          return (
+            <button key={it.k} onClick={onAdd} style={{
+              background: 'transparent', position: 'relative', flex: 1,
+            }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: 18, background: 'var(--coral)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 6px 14px rgba(217,143,108,0.4)', marginTop: -18,
+              }}>
+                <Icon name="plus" size={24}/>
+              </div>
+            </button>
+          );
+        }
+        return (
+          <button key={it.k} onClick={() => onChange(it.k)} className={active === it.k ? 'active' : ''}>
+            <Icon name={it.i} size={20}/>
+            <span>{it.l}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+/* ========== root app ========== */
+const TWEAK_DEFAULTS = {
+  userId: 'dad',
+  dark: false,
+  palette: 'default',
+  fontScale: 1,
+};
+
+const App = () => {
+  const [settings, setSettings] = useState(() => {
+    try {
+      const s = localStorage.getItem('family-tweaks');
+      if (s) return { ...TWEAK_DEFAULTS, ...JSON.parse(s) };
+    } catch {}
+    return TWEAK_DEFAULTS;
+  });
+  const [showTweaks, setShowTweaks] = useState(false);
+  const [scene, setScene] = useState(() => localStorage.getItem('family-scene') || 'home');
+  const [activeTab, setActiveTab] = useState('home');
+  const [selectedEvent, setSelectedEvent] = useState(EVENTS[0]);
+  const [selectedMemberId, setSelectedMemberId] = useState('dad');
+
+  const currentUser = FAMILY[settings.userId] || FAMILY.dad;
+  const readOnly = currentUser.role === 'viewer';
+
+  useEffect(() => { localStorage.setItem('family-tweaks', JSON.stringify(settings)); }, [settings]);
+  useEffect(() => { localStorage.setItem('family-scene', scene); }, [scene]);
+
+  useEffect(() => {
+    const classes = [];
+    if (settings.dark) classes.push('theme-dark');
+    if (settings.palette && settings.palette !== 'default') classes.push(`palette-${settings.palette}`);
+    document.documentElement.className = classes.join(' ');
+    document.documentElement.style.setProperty('--fs-scale', settings.fontScale);
+  }, [settings.dark, settings.palette, settings.fontScale]);
+
+  useEffect(() => {
+    const btn = document.getElementById('tweakToggle');
+    if (!btn) return;
+    const onClick = () => setShowTweaks(v => !v);
+    btn.addEventListener('click', onClick);
+    return () => btn.removeEventListener('click', onClick);
+  }, []);
+
+  useEffect(() => {
+    if (readOnly && scene === 'add') { setScene('home'); setActiveTab('home'); }
+  }, [readOnly, scene]);
+
+  const openEvent = (ev) => { setSelectedEvent(ev); setScene('detail'); };
+  const openMember = (id) => { setSelectedMemberId(id); setScene('member'); };
+
+  const SCENES = [
+    { k: 'home',     l: '首页' },
+    { k: 'timeline', l: '时间线' },
+    { k: 'add',      l: '新增' },
+    { k: 'detail',   l: '详情+AI' },
+    { k: 'member',   l: '成员档案' },
+    { k: 'advice',   l: '建议' },
+    { k: 'settings', l: '我们家' },
+  ];
+
+  let screen;
+  switch (scene) {
+    case 'home':
+      screen = <HomeScreen currentUser={currentUser}
+        onOpenEvent={openEvent} onOpenMember={openMember}
+        onNavigate={(k) => { setScene(k); setActiveTab(k); }}
+        onOpenAdvice={() => { setScene('advice'); setActiveTab('advice'); }}/>;
+      break;
+    case 'timeline':
+      screen = <TimelineScreen currentUser={currentUser} onOpenEvent={openEvent}/>;
+      break;
+    case 'add':
+      screen = <AddEventScreen currentUser={currentUser} readOnly={readOnly}
+        onClose={() => { setScene('home'); setActiveTab('home'); }}
+        onSave={() => { setScene('home'); setActiveTab('home'); }}/>;
+      break;
+    case 'detail':
+      screen = <EventDetailScreen event={selectedEvent} currentUser={currentUser}
+        onClose={() => { setScene('timeline'); setActiveTab('timeline'); }}/>;
+      break;
+    case 'advice':
+      screen = <AdviceScreen currentUser={currentUser} onBack={() => { setScene('home'); setActiveTab('home'); }}/>;
+      break;
+    case 'settings':
+      screen = <SettingsScreen currentUser={currentUser} onOpenMember={openMember}/>;
+      break;
+    case 'member':
+      screen = <MemberDetailScreen memberId={selectedMemberId}
+        onBack={() => { setScene('settings'); setActiveTab('settings'); }}/>;
+      break;
+    default:
+      screen = <HomeScreen currentUser={currentUser}/>;
+  }
+
+  const showBottomNav = scene !== 'add' && scene !== 'detail' && scene !== 'member';
+
+  return (
+    <>
+      <Phone label={`${SCENES.find(s => s.k === scene)?.l || ''} · ${currentUser.name}`}>
+        {readOnly && scene !== 'add' && <ReadOnlyBanner who={currentUser}/>}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {screen}
+        </div>
+        {showBottomNav && (
+          <BottomNav active={activeTab} currentUser={currentUser}
+            onChange={(k) => { setActiveTab(k); setScene(k); }}
+            onAdd={() => { setScene('add'); }}/>
+        )}
+      </Phone>
+
+      <div className="scene-switcher">
+        {SCENES.map(s => (
+          <button key={s.k} className={scene === s.k ? 'active' : ''} onClick={() => {
+            setScene(s.k);
+            if (['home', 'timeline', 'advice', 'settings'].includes(s.k)) setActiveTab(s.k);
+          }}>{s.l}</button>
+        ))}
+      </div>
+
+      <TweaksPanel open={showTweaks} onClose={() => setShowTweaks(false)}
+        settings={settings} setSettings={setSettings}/>
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
