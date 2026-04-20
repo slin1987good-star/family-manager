@@ -294,88 +294,65 @@ const Icon = ({ name, size = 20, color = 'currentColor', style = {} }) => {
   }
 };
 
-/* ========== data: family members ========== */
-const FAMILY = {
-  dad: {
-    id: 'dad', name: '爸爸', nickname: '老陈', emoji: '👨', cls: 'member-dad',
-    role: 'editor', tag: '编辑者',
-    age: 42, birthday: '1984-03-12', zodiac: '♓',
-    occupation: '软件架构师',
-    company: '一家互联网公司 · 技术团队',
-    workHours: '周一至周五 09:30 – 19:30（常加班到 21:00）',
-    commute: '通勤 45 分钟 · 地铁',
-    mbti: 'INTJ',
-    strengths: ['逻辑清晰', '动手能力强', '耐心'],
-    improvements: ['容易忽略情绪表达', '周末容易看手机过久'],
-    hobbies: ['摄影', '骑行', '科幻小说', '做木工'],
-    favFood: '手冲咖啡 · 家里妈妈做的红烧肉',
-    recordCount: 42,
-  },
-  mom: {
-    id: 'mom', name: '妈妈', nickname: '小林', emoji: '👩', cls: 'member-mom',
-    role: 'editor', tag: '编辑者',
-    age: 39, birthday: '1987-06-20', zodiac: '♊',
-    occupation: '中学语文老师',
-    company: '市第三中学 · 初二年级',
-    workHours: '周一至周五 07:40 – 17:30（周三有晚自习到 20:30）',
-    commute: '通勤 15 分钟 · 电瓶车',
-    mbti: 'ENFJ',
-    strengths: ['共情力强', '会做饭', '时间规划好'],
-    improvements: ['对孩子成绩偶尔过于焦虑', '不太会拒绝同事'],
-    hobbies: ['插花', '瑜伽', '读散文', '看《向往的生活》'],
-    favFood: '抹茶蛋糕 · 清蒸鲈鱼',
-    recordCount: 38,
-  },
-  daughter: {
-    id: 'daughter', name: '女儿', nickname: '小米', emoji: '👧', cls: 'member-daughter',
-    role: 'viewer', tag: '查看者',
-    age: 12, birthday: '2013-09-08', zodiac: '♍',
-    occupation: '初一学生',
-    company: '市实验中学 · 初一 (3) 班',
-    workHours: '在校 07:50 – 16:40 · 晚自习 自愿到 19:00',
-    commute: '步行 10 分钟',
-    grade: {
-      rank: '年级前 30',
-      subjects: [
-        { k: '语文', s: 92, trend: 'up' },
-        { k: '数学', s: 85, trend: 'flat' },
-        { k: '英语', s: 95, trend: 'up' },
-        { k: '物理', s: 78, trend: 'down' },
-      ],
-    },
-    mbti: 'INFP',
-    strengths: ['文笔好', '观察力细腻', '有责任感'],
-    improvements: ['物理有点吃力', '偶尔熬夜看书', '情绪比较敏感'],
-    hobbies: ['画画', '看小说（最近在读《夏洛的网》）', '养多肉', '追动画'],
-    favFood: '芒果布丁 · 番茄鸡蛋面',
-    recordCount: 28,
-  },
-  son: {
-    id: 'son', name: '儿子', nickname: '小宝', emoji: '👦', cls: 'member-son',
-    role: 'viewer', tag: '查看者',
-    age: 8, birthday: '2017-11-25', zodiac: '♐',
-    occupation: '二年级学生',
-    company: '市实验小学 · 二年级 (1) 班',
-    workHours: '在校 08:10 – 15:30 · 托管到 17:00',
-    commute: '妈妈接送 · 车程 10 分钟',
-    grade: {
-      rank: '班级前 10',
-      subjects: [
-        { k: '语文', s: 95, trend: 'flat' },
-        { k: '数学', s: 98, trend: 'up' },
-        { k: '英语', s: 88, trend: 'up' },
-      ],
-    },
-    mbti: 'ESFP',
-    strengths: ['活泼', '数感强', '乐于分享'],
-    improvements: ['坐不住', '写字有点潦草', '挑食'],
-    hobbies: ['乐高（最爱城堡系列）', '恐龙百科', '足球', '拼图'],
-    favFood: '炸鸡块 · 草莓 · 巧克力牛奶',
-    recordCount: 20,
-  },
+/* ========== API wiring ========== */
+const API_BASE = location.hostname.endsWith('fly.dev') || location.hostname === 'localhost'
+  ? ''  // same-origin when hosted on fly or local
+  : 'https://gw-family-manager.fly.dev';
+
+const storage = {
+  get token() { return localStorage.getItem('family-token'); },
+  set token(v) { v ? localStorage.setItem('family-token', v) : localStorage.removeItem('family-token'); },
 };
 
-const MEMBERS_LIST = [FAMILY.dad, FAMILY.mom, FAMILY.daughter, FAMILY.son];
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (storage.token) headers.Authorization = `Bearer ${storage.token}`;
+  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+  if (res.status === 401) {
+    storage.token = null;
+    window.dispatchEvent(new Event('family-unauthorized'));
+    throw new Error('unauthorized');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
+}
+
+/* Populated from API at app startup. Keeps existing function signatures working. */
+let FAMILY = {};
+let MEMBERS_LIST = [];
+let EVENTS = [];
+
+const buildMembers = (users) => {
+  FAMILY = {};
+  users.forEach(u => {
+    const p = u.profile || {};
+    FAMILY[u.id] = {
+      ...u, ...p,
+      tag: u.role === 'editor' ? '编辑者' : '查看者',
+      recordCount: p.recordCount ?? 0,
+    };
+  });
+  MEMBERS_LIST = ['dad', 'mom', 'daughter', 'son'].map(id => FAMILY[id]).filter(Boolean);
+};
+
+/* Map backend snake_case event to the camelCase shape used throughout the UI. */
+const normalizeEvent = (e) => ({
+  id: e.id,
+  type: e.type,
+  title: e.title,
+  desc: e.description || '',
+  members: e.members || [],
+  author: e.author_id,
+  time: e.time_label || '',
+  date: e.event_date || '',
+  mood: e.mood || undefined,
+  aiSummary: e.ai_summary || undefined,
+  aiCause: e.ai_cause || undefined,
+  aiSuggest: e.ai_suggest || undefined,
+  aiScript: e.ai_script || undefined,
+  aiStatus: e.ai_status,
+});
 
 const EVENT_TYPES = {
   conflict:  { key: 'conflict',  label: '冲突', emoji: '🫧', cls: 'tag-conflict' },
@@ -384,78 +361,7 @@ const EVENT_TYPES = {
   daily:     { key: 'daily',     label: '日常', emoji: '🍵', cls: 'tag-daily' },
 };
 
-const EVENTS = [
-  { id: 'e1', type: 'conflict',
-    title: '作业时间又起了小争执',
-    desc: '晚饭后女儿想先看一集动画再写作业，妈妈希望先完成数学作业，两人僵持了 20 分钟。',
-    members: ['mom', 'daughter'], author: 'mom',
-    time: '今天 19:42', date: '2026-04-20', mood: '着急',
-    aiSummary: '关于"先玩还是先学"的节奏分歧，双方都没错，只是节奏不同。',
-    aiCause: [
-      '妈妈担心拖到太晚影响睡眠',
-      '女儿需要一个明确的"喘息窗口"来切换状态',
-      '规则是单方面制定的，女儿没有参与感',
-    ],
-    aiSuggest: [
-      '一起商定一个"30 分钟缓冲时段"，女儿自主安排',
-      '把作业拆成两段，中间允许一次短休',
-      '晚饭时预告节奏，减少临场对抗',
-    ],
-    aiScript: '"宝贝，我知道你看动画很期待。我们一起定个时间好吗？看 20 分钟，然后一起写数学，写完妈妈陪你再看 10 分钟。"',
-  },
-  { id: 'e2', type: 'important',
-    title: '儿子第一次独立完成拼图',
-    desc: '200 片的城堡拼图，花了整整一下午，没有求助一次。',
-    members: ['son', 'dad'], author: 'dad',
-    time: '今天 16:10', date: '2026-04-20', mood: '骄傲',
-    aiSummary: '儿子在专注力和耐心上有了一次关键突破，值得被认真记住。',
-    aiSuggest: [
-      '把拼图拍下来做成纪念墙的一部分',
-      '今晚睡前用具体的话语夸奖（不是"真棒"而是"你中间卡住那次没放弃"）',
-      '下周可以一起挑战 300 片',
-    ],
-  },
-  { id: 'e3', type: 'habit',
-    title: '一家人连续 5 天 22:00 前上床',
-    desc: '本周目标达成！孩子们睡眠时间比上周早了平均 40 分钟。',
-    members: ['dad', 'mom', 'daughter', 'son'], author: 'mom',
-    time: '今天 07:30', date: '2026-04-20',
-    aiSummary: '早睡习惯正在形成，关键是全家同步而不是孤立要求孩子。',
-  },
-  { id: 'e4', type: 'daily',
-    title: '儿子在车里突然说"我喜欢星期天"',
-    desc: '问他为什么，他说因为"全家人都在"。',
-    members: ['son'], author: 'dad',
-    time: '昨天 18:20', date: '2026-04-19',
-    aiSummary: '孩子在寻找"全家一起"的确定感，这是家庭仪式的契机。',
-  },
-  { id: 'e5', type: 'conflict',
-    title: '关于手机使用时间',
-    desc: '女儿希望周末多半小时，爸爸觉得最近作业质量下降不同意。',
-    members: ['dad', 'daughter'], author: 'dad',
-    time: '昨天 21:05', date: '2026-04-19', mood: '失望',
-    aiSummary: '手机不是问题本身，是信任和自主权的谈判桌。',
-  },
-  { id: 'e6', type: 'important',
-    title: '结婚 15 周年纪念日',
-    desc: '下周五，打算订那家第一次约会的小馆子。',
-    members: ['dad', 'mom'], author: 'dad',
-    time: '昨天 10:00', date: '2026-04-19',
-    aiSummary: '别忘了告诉孩子们——让孩子看到父母的爱，是最好的教育。',
-  },
-  { id: 'e7', type: 'habit',
-    title: '女儿坚持阅读 30 分钟 · 第 12 天',
-    desc: '今天读的是《夏洛的网》。',
-    members: ['daughter'], author: 'mom',
-    time: '前天 20:40', date: '2026-04-18',
-  },
-  { id: 'e8', type: 'daily',
-    title: '周末一起包饺子',
-    desc: '儿子负责揉面，女儿负责捏造型，做出了独角兽和小船。',
-    members: ['dad', 'mom', 'daughter', 'son'], author: 'mom',
-    time: '前天 12:30', date: '2026-04-18',
-  },
-];
+/* EVENTS now comes from API — populated in App loadData() */
 
 const DAILY_REPORT = {
   date: '4 月 20 日 · 周一',
@@ -1367,7 +1273,7 @@ const Toggle = ({ on: initial }) => {
   );
 };
 
-const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks }) => {
+const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks, onLogout }) => {
   const PUSH_TIMES = [
     { label: '早安小报告', time: '07:30', on: true },
     { label: '睡前回顾', time: '21:30', on: true },
@@ -1467,6 +1373,15 @@ const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks }) => {
             </div>
           ))}
         </div>
+
+        <button onClick={onLogout} style={{
+          border: 0, background: 'var(--surface)', borderRadius: 18, padding: '14px 16px',
+          display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+          boxShadow: 'var(--shadow-soft)', color: 'var(--coral)', fontWeight: 700, fontSize: 14,
+          width: '100%', textAlign: 'left',
+        }}>
+          <Icon name="close" size={16}/> 退出登录 ({currentUser.name})
+        </button>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           {[
@@ -1674,28 +1589,8 @@ const TweaksPanel = ({ open, onClose, settings, setSettings }) => {
       boxShadow: '0 20px 60px rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.1)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>TWEAKS</div>
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>外观设置</div>
         <button onClick={onClose} style={{ border: 0, background: 'transparent', color: '#f4ecde', cursor: 'pointer' }}>✕</button>
-      </div>
-
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6 }}>当前身份</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          {MEMBERS_LIST.map(m => (
-            <button key={m.id} onClick={() => update('userId', m.id)} style={{
-              border: 0, padding: '8px 10px', borderRadius: 10, cursor: 'pointer',
-              background: settings.userId === m.id ? '#D98F6C' : 'rgba(255,255,255,0.08)',
-              color: '#f4ecde', fontFamily: 'inherit', fontSize: 11,
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{ fontSize: 16 }}>{m.emoji}</span>
-              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                <div style={{ fontWeight: 700 }}>{m.name}</div>
-                <div style={{ opacity: 0.7, fontSize: 9 }}>{m.tag}</div>
-              </div>
-            </button>
-          ))}
-        </div>
       </div>
 
       <div style={{ marginBottom: 14 }}>
@@ -1741,7 +1636,7 @@ const TweaksPanel = ({ open, onClose, settings, setSettings }) => {
 
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)',
         fontSize: 10, opacity: 0.5, lineHeight: 1.5 }}>
-        切换查看者身份（女儿/儿子）可体验只读权限下的界面差异。
+        外观设置会在这台手机上记住。
       </div>
     </div>
   );
@@ -1808,9 +1703,146 @@ const BottomNav = ({ active, onChange, onAdd, currentUser }) => {
   );
 };
 
+/* ========== login ========== */
+const LoginScreen = ({ onLogin }) => {
+  const [users, setUsers] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [pin, setPin] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    // public endpoint — fetch the member roster to render picker
+    fetch(`${API_BASE}/api/roster`, { headers: { 'Cache-Control': 'no-cache' } })
+      .then(r => r.ok ? r.json() : [])
+      .then(setUsers)
+      .catch(() => setErr('连不上服务器，请稍后再试'));
+  }, []);
+
+  const submit = async () => {
+    if (!selectedId || pin.length < 4) return;
+    setBusy(true); setErr('');
+    try {
+      const res = await fetch(`${API_BASE}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: selectedId, pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || '登录失败');
+      storage.token = data.token;
+      onLogin(data.user);
+    } catch (e) {
+      setErr(e.message || '登录失败');
+      setPin('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const keypad = ['1','2','3','4','5','6','7','8','9','⌫','0','✓'];
+
+  return (
+    <div style={{
+      width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+      background: 'linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 60%)',
+      padding: '40px 24px 24px', overflowY: 'auto',
+    }}>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{ fontSize: 40, marginBottom: 6 }}>🏡</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>家庭管理系统</div>
+        <div className="hand" style={{ fontSize: 20, color: 'var(--coral)', lineHeight: 1.2 }}>选一个身份登录</div>
+      </div>
+
+      {!users.length && !err && (
+        <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13, padding: 20 }}>
+          加载中... ⏳
+        </div>
+      )}
+
+      {users.length > 0 && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
+          marginBottom: 20,
+        }}>
+          {users.map(u => {
+            const on = selectedId === u.id;
+            return (
+              <button key={u.id} onClick={() => { setSelectedId(u.id); setPin(''); setErr(''); }} style={{
+                border: on ? '2px solid var(--coral)' : '2px solid var(--line-soft)',
+                background: on ? 'var(--coral-soft)' : 'var(--surface)',
+                borderRadius: 16, padding: '14px 10px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 10,
+                boxShadow: 'var(--shadow-soft)',
+              }}>
+                <span className={`avatar lg ${u.cls}`}>{u.emoji}</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800 }}>{u.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+                    {u.role === 'editor' ? '编辑者' : '查看者'}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {selectedId && (
+        <div style={{ marginTop: 'auto' }}>
+          <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)', marginBottom: 10 }}>
+            输入 {users.find(u => u.id === selectedId)?.name || selectedId} 的 4 位 PIN
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 14 }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} style={{
+                width: 44, height: 52, borderRadius: 12,
+                background: 'var(--surface)', border: '1px solid var(--line-soft)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 24, fontWeight: 800,
+                boxShadow: 'var(--shadow-soft)',
+              }}>{pin[i] ? '●' : ''}</div>
+            ))}
+          </div>
+          {err && (
+            <div style={{ textAlign: 'center', color: 'var(--coral)', fontSize: 12, marginBottom: 10 }}>
+              {err}
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, maxWidth: 280, margin: '0 auto' }}>
+            {keypad.map((k, i) => {
+              const isBack = k === '⌫';
+              const isOk = k === '✓';
+              const onTap = () => {
+                if (busy) return;
+                if (isBack) return setPin(p => p.slice(0, -1));
+                if (isOk) return submit();
+                if (pin.length < 4) setPin(p => p + k);
+              };
+              return (
+                <button key={i} onClick={onTap} disabled={busy || (isOk && pin.length < 4)} style={{
+                  border: 0, borderRadius: 14,
+                  padding: '14px 0', fontSize: 20, fontWeight: 700,
+                  background: isOk ? 'var(--coral)' : 'var(--surface)',
+                  color: isOk ? '#fff' : 'var(--ink)',
+                  opacity: (isOk && pin.length < 4) ? 0.4 : 1,
+                  boxShadow: 'var(--shadow-soft)', cursor: 'pointer',
+                }}>{k}</button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ textAlign: 'center', marginTop: 20, fontSize: 11, color: 'var(--ink-faint)' }}>
+        默认 PIN：爸 1111 · 妈 2222 · 女 3333 · 儿 4444
+      </div>
+    </div>
+  );
+};
+
 /* ========== root app ========== */
 const TWEAK_DEFAULTS = {
-  userId: 'dad',
   dark: false,
   palette: 'default',
   fontScale: 1,
@@ -1825,16 +1857,40 @@ const App = () => {
     return TWEAK_DEFAULTS;
   });
   const [showTweaks, setShowTweaks] = useState(false);
-  const [scene, setScene] = useState(() => localStorage.getItem('family-scene') || 'home');
+  const [scene, setScene] = useState('home');
   const [activeTab, setActiveTab] = useState('home');
-  const [selectedEvent, setSelectedEvent] = useState(EVENTS[0]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMemberId, setSelectedMemberId] = useState('dad');
 
-  const currentUser = FAMILY[settings.userId] || FAMILY.dad;
-  const readOnly = currentUser.role === 'viewer';
+  const [authed, setAuthed] = useState(!!storage.token);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [, forceTick] = useState(0);
+  const rerender = () => forceTick(t => t + 1);
+
+  const loadData = async () => {
+    const [me, users, events] = await Promise.all([
+      api('/api/me'),
+      api('/api/users'),
+      api('/api/events'),
+    ]);
+    buildMembers(users);
+    EVENTS = events.map(normalizeEvent);
+    setCurrentUser(FAMILY[me.id]);
+  };
+
+  useEffect(() => {
+    if (!authed) return;
+    loadData().catch(e => {
+      if (e.message === 'unauthorized') setAuthed(false);
+      else setLoadError(e.message);
+    });
+    const onUnauth = () => setAuthed(false);
+    window.addEventListener('family-unauthorized', onUnauth);
+    return () => window.removeEventListener('family-unauthorized', onUnauth);
+  }, [authed]);
 
   useEffect(() => { localStorage.setItem('family-tweaks', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('family-scene', scene); }, [scene]);
 
   useEffect(() => {
     const classes = [];
@@ -1844,22 +1900,59 @@ const App = () => {
     document.documentElement.style.setProperty('--fs-scale', settings.fontScale);
   }, [settings.dark, settings.palette, settings.fontScale]);
 
-  useEffect(() => {
-    if (readOnly && scene === 'add') { setScene('home'); setActiveTab('home'); }
-  }, [readOnly, scene]);
+  if (!authed) {
+    return <LoginScreen onLogin={() => setAuthed(true)}/>;
+  }
+
+  if (!currentUser) {
+    return (
+      <div style={{
+        width: '100%', height: '100%', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        flexDirection: 'column', gap: 12, background: 'var(--bg)',
+      }}>
+        <div style={{ fontSize: 32 }}>🏡</div>
+        <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+          {loadError ? `加载失败：${loadError}` : '加载中...'}
+        </div>
+        {loadError && (
+          <button className="btn btn-primary" onClick={() => { setLoadError(''); setAuthed(!!storage.token); loadData().catch(e => setLoadError(e.message)); }}>
+            重试
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const readOnly = currentUser.role === 'viewer';
+
+  const logout = () => {
+    storage.token = null;
+    FAMILY = {}; MEMBERS_LIST = []; EVENTS = [];
+    setCurrentUser(null);
+    setAuthed(false);
+    setScene('home');
+  };
+
+  const saveEvent = async (payload) => {
+    try {
+      const created = await api('/api/events', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      EVENTS = [normalizeEvent(created), ...EVENTS];
+      rerender();
+      return true;
+    } catch (e) {
+      alert('保存失败：' + e.message);
+      return false;
+    }
+  };
+
+  if (readOnly && scene === 'add') { setScene('home'); setActiveTab('home'); }
 
   const openEvent = (ev) => { setSelectedEvent(ev); setScene('detail'); };
   const openMember = (id) => { setSelectedMemberId(id); setScene('member'); };
-
-  const SCENES = [
-    { k: 'home',     l: '首页' },
-    { k: 'timeline', l: '时间线' },
-    { k: 'add',      l: '新增' },
-    { k: 'detail',   l: '详情+AI' },
-    { k: 'member',   l: '成员档案' },
-    { k: 'advice',   l: '建议' },
-    { k: 'settings', l: '我们家' },
-  ];
 
   let screen;
   switch (scene) {
@@ -1875,7 +1968,10 @@ const App = () => {
     case 'add':
       screen = <AddEventScreen currentUser={currentUser} readOnly={readOnly}
         onClose={() => { setScene('home'); setActiveTab('home'); }}
-        onSave={() => { setScene('home'); setActiveTab('home'); }}/>;
+        onSave={async (p) => {
+          const ok = await saveEvent(p);
+          if (ok) { setScene('home'); setActiveTab('home'); }
+        }}/>;
       break;
     case 'detail':
       screen = <EventDetailScreen event={selectedEvent} currentUser={currentUser}
@@ -1885,7 +1981,8 @@ const App = () => {
       screen = <AdviceScreen currentUser={currentUser} onBack={() => { setScene('home'); setActiveTab('home'); }}/>;
       break;
     case 'settings':
-      screen = <SettingsScreen currentUser={currentUser} onOpenMember={openMember} onOpenTweaks={() => setShowTweaks(true)}/>;
+      screen = <SettingsScreen currentUser={currentUser} onOpenMember={openMember}
+        onOpenTweaks={() => setShowTweaks(true)} onLogout={logout}/>;
       break;
     case 'member':
       screen = <MemberDetailScreen memberId={selectedMemberId}

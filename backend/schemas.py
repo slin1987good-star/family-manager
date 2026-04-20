@@ -19,7 +19,6 @@ class EventIn(BaseModel):
     title: str
     description: str = ""
     members: List[str] = Field(default_factory=list)
-    author_id: str
     time_label: Optional[str] = None
     event_date: Optional[str] = None
     mood: Optional[str] = None

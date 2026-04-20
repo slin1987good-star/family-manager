@@ -1,5 +1,8 @@
 from db import SessionLocal
 from models import User
+from auth import hash_pin
+
+DEFAULT_PINS = {"dad": "1111", "mom": "2222", "daughter": "3333", "son": "4444"}
 
 FAMILY_SEED = [
     {
@@ -85,12 +88,20 @@ FAMILY_SEED = [
 def seed_if_empty():
     db = SessionLocal()
     try:
-        if db.query(User).count() > 0:
+        if db.query(User).count() == 0:
+            for u in FAMILY_SEED:
+                db.add(User(pin_hash=hash_pin(DEFAULT_PINS[u["id"]]), **u))
+            db.commit()
+            print(f"Seeded {len(FAMILY_SEED)} family members.")
             return
-        for u in FAMILY_SEED:
-            db.add(User(**u))
-        db.commit()
-        print(f"Seeded {len(FAMILY_SEED)} family members.")
+        # backfill missing pin_hash for existing users
+        missing = db.query(User).filter(User.pin_hash.is_(None)).all()
+        for u in missing:
+            if u.id in DEFAULT_PINS:
+                u.pin_hash = hash_pin(DEFAULT_PINS[u.id])
+        if missing:
+            db.commit()
+            print(f"Backfilled pin_hash for {len(missing)} users.")
     finally:
         db.close()
 

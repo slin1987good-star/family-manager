@@ -13,6 +13,7 @@ class User(Base):
     cls = Column(String)
     role = Column(String, nullable=False)
     profile = Column(JSON, default=dict)
+    pin_hash = Column(String)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
