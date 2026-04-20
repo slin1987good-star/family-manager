@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FBF6EC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>家庭管理系统 · 温暖治愈</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 <style>
@@ -77,11 +80,18 @@
 }
 
 html, body {
-  margin: 0; padding: 0; background: #2a2622;
+  margin: 0; padding: 0; background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: calc(15px * var(--fs-scale));
   -webkit-font-smoothing: antialiased;
+  height: 100%; overscroll-behavior: none;
+}
+#root {
+  height: 100dvh; height: 100vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
 }
 * { box-sizing: border-box; }
 button { font-family: inherit; }
@@ -240,10 +250,7 @@ button { font-family: inherit; }
 </style>
 </head>
 <body>
-<div class="page">
-  <div id="root"></div>
-</div>
-<button class="tweak-toggle" id="tweakToggle">TWEAKS</button>
+<div id="root"></div>
 
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -263,6 +270,7 @@ const Icon = ({ name, size = 20, color = 'currentColor', style = {} }) => {
     case 'home': return (<svg {...common} style={s}><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>);
     case 'list': return (<svg {...common} style={s}><path d="M4 6h16M4 12h16M4 18h10"/></svg>);
     case 'plus': return (<svg {...common} style={s}><path d="M12 5v14M5 12h14"/></svg>);
+    case 'settings': return (<svg {...common} style={s}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3h0a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8v0a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>);
     case 'chart': return (<svg {...common} style={s}><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-6M12 16V8M16 16v-4"/></svg>);
     case 'bell': return (<svg {...common} style={s}><path d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 004 0"/></svg>);
     case 'sparkle': return (<svg {...common} style={s}><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M19 15l.7 2L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-1z"/></svg>);
@@ -1359,7 +1367,7 @@ const Toggle = ({ on: initial }) => {
   );
 };
 
-const SettingsScreen = ({ currentUser, onOpenMember }) => {
+const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks }) => {
   const PUSH_TIMES = [
     { label: '早安小报告', time: '07:30', on: true },
     { label: '睡前回顾', time: '21:30', on: true },
@@ -1371,7 +1379,14 @@ const SettingsScreen = ({ currentUser, onOpenMember }) => {
       <div style={{
         padding: '18px 20px 24px', background: 'var(--bg-soft)',
         borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
+        position: 'relative',
       }}>
+        <button onClick={onOpenTweaks} style={{
+          position: 'absolute', top: 18, right: 20,
+          border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: 'var(--shadow-soft)', color: 'var(--ink-soft)', cursor: 'pointer',
+        }}><Icon name="settings" size={16}/></button>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)' }}>我们家</div>
         <div className="hand" style={{ fontSize: 20, color: 'var(--coral)', lineHeight: 1 }}>Our home · 一家四口</div>
 
@@ -1742,19 +1757,15 @@ const StatusBar = () => (
   </div>
 );
 
-const Phone = ({ children, label }) => (
-  <div className="device-wrap" data-screen-label={label}>
-    <div className="canvas-label">{label}</div>
-    <div className="phone-frame">
-      <div className="notch"/>
-      <div className="phone-inner">
-        <StatusBar/>
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {children}
-        </div>
-        <div className="bottom-bar-spacer"/>
-      </div>
-    </div>
+const Phone = ({ children }) => (
+  <div style={{
+    width: '100%', height: '100%',
+    display: 'flex', flexDirection: 'column',
+    background: 'var(--bg)', overflow: 'hidden',
+    paddingTop: 'env(safe-area-inset-top)',
+    paddingBottom: 'env(safe-area-inset-bottom)',
+  }}>
+    {children}
   </div>
 );
 
@@ -1834,14 +1845,6 @@ const App = () => {
   }, [settings.dark, settings.palette, settings.fontScale]);
 
   useEffect(() => {
-    const btn = document.getElementById('tweakToggle');
-    if (!btn) return;
-    const onClick = () => setShowTweaks(v => !v);
-    btn.addEventListener('click', onClick);
-    return () => btn.removeEventListener('click', onClick);
-  }, []);
-
-  useEffect(() => {
     if (readOnly && scene === 'add') { setScene('home'); setActiveTab('home'); }
   }, [readOnly, scene]);
 
@@ -1882,7 +1885,7 @@ const App = () => {
       screen = <AdviceScreen currentUser={currentUser} onBack={() => { setScene('home'); setActiveTab('home'); }}/>;
       break;
     case 'settings':
-      screen = <SettingsScreen currentUser={currentUser} onOpenMember={openMember}/>;
+      screen = <SettingsScreen currentUser={currentUser} onOpenMember={openMember} onOpenTweaks={() => setShowTweaks(true)}/>;
       break;
     case 'member':
       screen = <MemberDetailScreen memberId={selectedMemberId}
@@ -1895,31 +1898,19 @@ const App = () => {
   const showBottomNav = scene !== 'add' && scene !== 'detail' && scene !== 'member';
 
   return (
-    <>
-      <Phone label={`${SCENES.find(s => s.k === scene)?.l || ''} · ${currentUser.name}`}>
-        {readOnly && scene !== 'add' && <ReadOnlyBanner who={currentUser}/>}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {screen}
-        </div>
-        {showBottomNav && (
-          <BottomNav active={activeTab} currentUser={currentUser}
-            onChange={(k) => { setActiveTab(k); setScene(k); }}
-            onAdd={() => { setScene('add'); }}/>
-        )}
-      </Phone>
-
-      <div className="scene-switcher">
-        {SCENES.map(s => (
-          <button key={s.k} className={scene === s.k ? 'active' : ''} onClick={() => {
-            setScene(s.k);
-            if (['home', 'timeline', 'advice', 'settings'].includes(s.k)) setActiveTab(s.k);
-          }}>{s.l}</button>
-        ))}
+    <Phone>
+      {readOnly && scene !== 'add' && <ReadOnlyBanner who={currentUser}/>}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {screen}
       </div>
-
+      {showBottomNav && (
+        <BottomNav active={activeTab} currentUser={currentUser}
+          onChange={(k) => { setActiveTab(k); setScene(k); }}
+          onAdd={() => { setScene('add'); }}/>
+      )}
       <TweaksPanel open={showTweaks} onClose={() => setShowTweaks(false)}
         settings={settings} setSettings={setSettings}/>
-    </>
+    </Phone>
   );
 };
 
