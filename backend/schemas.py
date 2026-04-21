@@ -16,7 +16,7 @@ class UserOut(BaseModel):
 
 class EventIn(BaseModel):
     type: str
-    title: str
+    title: Optional[str] = None  # AI fills this from `description` on analysis
     description: str = ""
     members: List[str] = Field(default_factory=list)
     time_label: Optional[str] = None

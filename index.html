@@ -107,9 +107,11 @@ button { font-family: inherit; }
 }
 
 .tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
   display: flex; background: var(--surface);
   border-top: 1px solid var(--line);
-  padding: 6px 8px 10px; gap: 4px;
+  padding: 6px 8px calc(10px + env(safe-area-inset-bottom));
+  gap: 4px;
 }
 .tabbar button {
   flex: 1; border: 0; background: transparent;
@@ -353,6 +355,7 @@ const normalizeEvent = (e) => ({
   aiSuggest: e.ai_suggest || undefined,
   aiScript: e.ai_script || undefined,
   aiStatus: e.ai_status,
+  createdAt: e.created_at || null,
 });
 
 const EVENT_TYPES = {
@@ -374,6 +377,24 @@ const formatReportDate = (yyyymmdd) => {
   const weekdays = ['周日','周一','周二','周三','周四','周五','周六'];
   const dt = new Date(y, m - 1, d);
   return `${m} 月 ${d} 日 · ${weekdays[dt.getDay()]}`;
+};
+
+// All date/time the UI renders is Beijing (UTC+8) regardless of the device's
+// local timezone, matching the backend's event_date field.
+const BJ_TZ = 'Asia/Shanghai';
+const _bjFmt = (opts) => new Intl.DateTimeFormat('zh-CN', { timeZone: BJ_TZ, ...opts });
+const beijingDateYMD = () => {
+  const p = _bjFmt({ year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const o = Object.fromEntries(p.map(x => [x.type, x.value]));
+  return `${o.year}-${o.month}-${o.day}`;
+};
+const beijingDateLabel = () => {
+  const p = _bjFmt({ year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).formatToParts(new Date());
+  const o = Object.fromEntries(p.map(x => [x.type, x.value]));
+  return `${o.year} 年 ${o.month} ${o.day} 日 · ${o.weekday}`;
+};
+const beijingTimeHHMM = () => {
+  return _bjFmt({ hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
 };
 
 const AI_ADVICE = [
@@ -546,7 +567,7 @@ const ReadOnlyBanner = ({ who }) => (
   </div>
 );
 
-const HomeHeader = ({ currentUser, date, onOpenMember }) => (
+const HomeHeader = ({ currentUser, date, onOpenMember, onOpenNotif, hasUnread }) => (
   <div style={{
     padding: '18px 20px 24px',
     background: 'linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%)',
@@ -562,19 +583,21 @@ const HomeHeader = ({ currentUser, date, onOpenMember }) => (
           {currentUser.role === 'viewer' ? '今天也要加油喔 ·' : '今天是充满温度的一天 ·'}
         </div>
       </div>
-      <button style={{
+      <button onClick={onOpenNotif} style={{
         position: 'relative', border: 0, background: 'var(--surface)',
         width: 40, height: 40, borderRadius: '50%',
-        boxShadow: 'var(--shadow-soft)',
+        boxShadow: 'var(--shadow-soft)', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'var(--ink-soft)',
       }}>
         <Icon name="bell" size={18}/>
-        <span style={{
-          position: 'absolute', top: 8, right: 9, width: 8, height: 8,
-          background: 'var(--coral)', borderRadius: '50%',
-          border: '2px solid var(--surface)',
-        }}/>
+        {hasUnread && (
+          <span style={{
+            position: 'absolute', top: 8, right: 9, width: 8, height: 8,
+            background: 'var(--coral)', borderRadius: '50%',
+            border: '2px solid var(--surface)',
+          }}/>
+        )}
       </button>
     </div>
     <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'space-between' }}>
@@ -740,16 +763,18 @@ const AdviceCard = ({ advice, currentUser }) => {
   );
 };
 
-const HomeScreen = ({ currentUser, onOpenEvent, onNavigate, onOpenAdvice, onOpenMember }) => {
+const HomeScreen = ({ currentUser, onOpenEvent, onNavigate, onOpenAdvice, onOpenMember, onOpenNotif, hasUnread }) => {
+  const today = beijingDateYMD();
   const myEvents = visibleEvents(currentUser.id);
-  const todayEvents = myEvents.filter(e => e.date === '2026-04-20').slice(0, 3)
+  const todayEvents = myEvents.filter(e => e.date === today).slice(0, 3)
     .map(e => localizeEvent(e, currentUser.id));
   const trending = getAdviceForViewer(currentUser.id).slice(0, 2);
   const report = getDailyReport(currentUser.id);
 
   return (
     <div className="app scroll-hide">
-      <HomeHeader currentUser={currentUser} date="2026 年 4 月 20 日 · 周一" onOpenMember={onOpenMember}/>
+      <HomeHeader currentUser={currentUser} date={beijingDateLabel()}
+        onOpenMember={onOpenMember} onOpenNotif={onOpenNotif} hasUnread={hasUnread}/>
       <StatStrip events={myEvents} currentUser={currentUser}/>
       <DailyReportCard onOpen={onOpenAdvice} report={report} currentUser={currentUser}/>
 
@@ -898,14 +923,13 @@ const TimelineScreen = ({ currentUser, onOpenEvent }) => {
 /* ========== screens: add event ========== */
 const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
   const [type, setType] = useState('conflict');
-  const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [members, setMembers] = useState([currentUser.id]);
   const [mood, setMood] = useState('');
   const [aiGen, setAiGen] = useState(false);
 
   const toggle = (id) => setMembers(m => m.includes(id) ? m.filter(x => x !== id) : [...m, id]);
-  const canSave = title.trim().length > 0 && members.length > 0 && !readOnly;
+  const canSave = desc.trim().length >= 4 && members.length > 0 && !readOnly;
 
   useEffect(() => {
     if (desc.length > 20 && !aiGen) {
@@ -928,7 +952,7 @@ const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
           <Icon name="close" size={18}/> 取消
         </button>
         <div style={{ fontSize: 16, fontWeight: 800 }}>记录一件事</div>
-        <button disabled={!canSave} onClick={() => onSave({ type, title, desc, members })}
+        <button disabled={!canSave} onClick={() => onSave({ type, desc, members, mood })}
           className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }}>
           保存
         </button>
@@ -961,21 +985,9 @@ const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
         </div>
 
         <div className="card" style={{ padding: 14 }}>
-          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 8 }}>一句话标题</div>
-          <input value={title} onChange={e => setTitle(e.target.value)}
-            placeholder="例如：作业时间的一次小争执" style={{
-              width: '100%', border: 0, background: 'transparent',
-              fontSize: 16, fontWeight: 600, color: 'var(--ink)',
-              outline: 'none', padding: '4px 0',
-            }}/>
-        </div>
-
-        <div className="card" style={{ padding: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700 }}>描述一下当时的情景</div>
-            <button style={{ border: 0, background: 'transparent', color: 'var(--lavender)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}>
-              <Icon name="mic" size={12}/> 语音
-            </button>
+          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 8 }}>描述一下当时的情景</div>
+          <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 8, lineHeight: 1.5 }}>
+            标题不用自己想，AI 会从你的描述里提炼一个出来。
           </div>
           <textarea value={desc} onChange={e => setDesc(e.target.value)}
             placeholder="发生了什么？谁说了什么？你当时的感受..." rows={4} style={{
@@ -1297,28 +1309,43 @@ const AdviceScreen = ({ onBack, currentUser }) => {
 };
 
 /* ========== screens: settings ========== */
-const Toggle = ({ on: initial }) => {
-  const [on, setOn] = useState(initial);
-  return (
-    <button onClick={() => setOn(!on)} style={{
-      border: 0, width: 42, height: 24, borderRadius: 999,
-      background: on ? 'var(--coral)' : 'var(--line)',
-      position: 'relative', cursor: 'pointer', transition: 'background .2s',
-    }}>
-      <div style={{
-        position: 'absolute', top: 2, left: on ? 20 : 2,
-        width: 20, height: 20, borderRadius: '50%', background: '#fff',
-        transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-      }}/>
-    </button>
-  );
+const Toggle = ({ on, onChange }) => (
+  <button onClick={() => onChange(!on)} style={{
+    border: 0, width: 42, height: 24, borderRadius: 999,
+    background: on ? 'var(--coral)' : 'var(--line)',
+    position: 'relative', cursor: 'pointer', transition: 'background .2s',
+  }}>
+    <div style={{
+      position: 'absolute', top: 2, left: on ? 20 : 2,
+      width: 20, height: 20, borderRadius: '50%', background: '#fff',
+      transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+    }}/>
+  </button>
+);
+
+const DEFAULT_PUSH_PREFS = {
+  morning: true,    // 早安小报告
+  evening: true,    // 睡前回顾
+  conflict: false,  // 冲突即时建议
 };
 
 const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks, onLogout }) => {
+  const [pushPrefs, setPushPrefs] = useState(() => {
+    try {
+      const raw = localStorage.getItem('family-push-prefs');
+      if (raw) return { ...DEFAULT_PUSH_PREFS, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_PUSH_PREFS;
+  });
+  const updatePush = (key, v) => setPushPrefs(p => {
+    const next = { ...p, [key]: v };
+    localStorage.setItem('family-push-prefs', JSON.stringify(next));
+    return next;
+  });
   const PUSH_TIMES = [
-    { label: '早安小报告', time: '07:30', on: true },
-    { label: '睡前回顾', time: '21:30', on: true },
-    { label: '冲突即时建议', time: '触发时', on: false },
+    { key: 'morning',  label: '早安小报告',   time: '07:30' },
+    { key: 'evening',  label: '睡前回顾',     time: '21:30' },
+    { key: 'conflict', label: '冲突即时建议', time: '触发时' },
   ];
 
   return (
@@ -1353,9 +1380,8 @@ const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks, onLogout }) =
       <div style={{ padding: '16px 16px 100px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 16px 8px', fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
-            <span>家庭成员</span>
-            {currentUser.role === 'editor' && <button style={{ border: 0, background: 'transparent', color: 'var(--coral)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ 邀请</button>}
+          <div style={{ padding: '14px 16px 8px', fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700 }}>
+            家庭成员
           </div>
           {MEMBERS_LIST.map((m, i) => {
             const isMe = m.id === currentUser.id;
@@ -1395,9 +1421,9 @@ const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks, onLogout }) =
         </div>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 16px 8px', fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700 }}>每日 AI 推送</div>
+          <div style={{ padding: '14px 16px 8px', fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700 }}>每日推送</div>
           {PUSH_TIMES.map((p, i) => (
-            <div key={i} style={{
+            <div key={p.key} style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '12px 16px', borderTop: i === 0 ? 0 : '1px solid var(--line-soft)',
             }}>
@@ -1410,9 +1436,12 @@ const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks, onLogout }) =
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{p.label}</div>
                 <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{p.time}</div>
               </div>
-              <Toggle on={p.on}/>
+              <Toggle on={!!pushPrefs[p.key]} onChange={v => updatePush(p.key, v)}/>
             </div>
           ))}
+          <div style={{ padding: '8px 16px 14px', fontSize: 11, color: 'var(--ink-faint)', lineHeight: 1.5 }}>
+            偏好保存在本机。微信 / 企微推送联通后将按此设置发送（功能建设中）。
+          </div>
         </div>
 
         <button onClick={onLogout} style={{
@@ -1423,32 +1452,6 @@ const SettingsScreen = ({ currentUser, onOpenMember, onOpenTweaks, onLogout }) =
         }}>
           <Icon name="close" size={16}/> 退出登录 ({currentUser.name})
         </button>
-
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {[
-            { icon: 'chart', label: '数据与趋势', sub: '查看本月情绪变化' },
-            { icon: 'book', label: '家庭纪念册', sub: '把重要事件整理成回忆' },
-            { icon: 'heart', label: 'AI 小助手设置', sub: '语气、推送偏好' },
-            { icon: 'lock', label: '隐私与安全', sub: '数据本地加密' },
-          ].map((it, i) => (
-            <button key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
-              border: 0, background: 'transparent', width: '100%', textAlign: 'left',
-              borderTop: i === 0 ? 0 : '1px solid var(--line-soft)', cursor: 'pointer',
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 12, background: 'var(--surface-muted)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--ink-soft)',
-              }}><Icon name={it.icon} size={16}/></div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{it.label}</div>
-                <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{it.sub}</div>
-              </div>
-              <Icon name="arrow-right" size={14} color="var(--ink-faint)"/>
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -1744,6 +1747,95 @@ const BottomNav = ({ active, onChange, onAdd, currentUser }) => {
   );
 };
 
+/* ========== notification panel ========== */
+const NotifPanel = ({ open, onClose, events, dailyReport, currentUser, onOpenEvent, onMarkAllRead }) => {
+  if (!open) return null;
+
+  const lastSeen = Number(localStorage.getItem('family-last-notif-seen') || 0);
+  const items = [];
+
+  // today's daily report (if newer than lastSeen)
+  if (dailyReport?.report_date) {
+    const reportTs = new Date(dailyReport.report_date + 'T07:30:00+08:00').getTime();
+    if (reportTs > lastSeen) {
+      items.push({
+        key: 'report-' + dailyReport.report_date,
+        ts: reportTs,
+        icon: '📅',
+        title: `${formatReportDate(dailyReport.report_date)} 小报告`,
+        body: dailyReport.highlight?.slice(0, 60) || '',
+        onTap: () => { onMarkAllRead(); onClose(); },
+      });
+    }
+  }
+
+  // events with a fresh AI summary, not authored by me
+  events.forEach(e => {
+    if (!e.aiSummary) return;
+    if (e.author === currentUser.id) return;
+    const ts = new Date(e.createdAt || 0).getTime() || Date.now();
+    if (ts <= lastSeen) return;
+    items.push({
+      key: 'event-' + e.id,
+      ts,
+      icon: EVENT_TYPES[e.type]?.emoji || '·',
+      title: e.title,
+      body: e.aiSummary.slice(0, 60),
+      onTap: () => { onMarkAllRead(); onClose(); onOpenEvent(e); },
+    });
+  });
+
+  items.sort((a, b) => b.ts - a.ts);
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.35)',
+      display: 'flex', alignItems: 'flex-end',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg)', width: '100%',
+        borderTopLeftRadius: 24, borderTopRightRadius: 24,
+        padding: '16px 16px calc(24px + env(safe-area-inset-bottom))',
+        maxHeight: '75%', overflowY: 'auto',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.25)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>通知</div>
+          {items.length > 0 && (
+            <button onClick={() => { onMarkAllRead(); onClose(); }} style={{
+              border: 0, background: 'transparent', color: 'var(--coral)',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>全部已读</button>
+          )}
+        </div>
+
+        {items.length === 0 ? (
+          <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>
+            暂时没有新通知 🌿
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {items.map(it => (
+              <button key={it.key} onClick={it.onTap} style={{
+                border: 0, background: 'var(--surface)', borderRadius: 14,
+                padding: 14, textAlign: 'left', cursor: 'pointer',
+                boxShadow: 'var(--shadow-soft)',
+                display: 'flex', gap: 10, alignItems: 'flex-start',
+              }}>
+                <div style={{ fontSize: 20 }}>{it.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{it.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>{it.body}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 /* ========== login ========== */
 const LoginScreen = ({ onLogin }) => {
   const [users, setUsers] = useState([]);
@@ -1906,8 +1998,35 @@ const App = () => {
   const [authed, setAuthed] = useState(!!storage.token);
   const [currentUser, setCurrentUser] = useState(null);
   const [loadError, setLoadError] = useState('');
+  const [showNotif, setShowNotif] = useState(false);
+  const [notifTick, setNotifTick] = useState(0);
   const [, forceTick] = useState(0);
   const rerender = () => forceTick(t => t + 1);
+
+  const markAllNotifRead = () => {
+    localStorage.setItem('family-last-notif-seen', String(Date.now()));
+    setNotifTick(n => n + 1);
+  };
+
+  // Compute hasUnread based on EVENTS + DAILY_REPORT vs last-seen
+  const computeUnread = () => {
+    const lastSeen = Number(localStorage.getItem('family-last-notif-seen') || 0);
+    if (DAILY_REPORT?.report_date) {
+      const ts = new Date(DAILY_REPORT.report_date + 'T07:30:00+08:00').getTime();
+      if (ts > lastSeen) return true;
+    }
+    if (currentUser) {
+      return EVENTS.some(e => {
+        if (!e.aiSummary || e.author === currentUser.id) return false;
+        const ts = new Date(e.createdAt || 0).getTime() || 0;
+        return ts > lastSeen;
+      });
+    }
+    return false;
+  };
+  const hasUnread = computeUnread();
+  // notifTick referenced so React re-runs above after markAllNotifRead
+  void notifTick;
 
   const loadData = async () => {
     const [me, users, events, daily] = await Promise.all([
@@ -2026,7 +2145,9 @@ const App = () => {
       screen = <HomeScreen currentUser={currentUser}
         onOpenEvent={openEvent} onOpenMember={openMember}
         onNavigate={(k) => { setScene(k); setActiveTab(k); }}
-        onOpenAdvice={() => { setScene('advice'); setActiveTab('advice'); }}/>;
+        onOpenAdvice={() => { setScene('advice'); setActiveTab('advice'); }}
+        onOpenNotif={() => setShowNotif(true)}
+        hasUnread={hasUnread}/>;
       break;
     case 'timeline':
       screen = <TimelineScreen currentUser={currentUser} onOpenEvent={openEvent}/>;
@@ -2073,6 +2194,9 @@ const App = () => {
       )}
       <TweaksPanel open={showTweaks} onClose={() => setShowTweaks(false)}
         settings={settings} setSettings={setSettings}/>
+      <NotifPanel open={showNotif} onClose={() => setShowNotif(false)}
+        events={EVENTS} dailyReport={DAILY_REPORT} currentUser={currentUser}
+        onOpenEvent={openEvent} onMarkAllRead={markAllNotifRead}/>
     </Phone>
   );
 };

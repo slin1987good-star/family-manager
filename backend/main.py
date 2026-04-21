@@ -146,15 +146,15 @@ def create_event(
     if user.role != "editor":
         raise HTTPException(403, f"{user.name} 是查看者，不能记录事件")
 
-    now = datetime.now(timezone.utc)
+    now_bj = _beijing_now()
     event = models.Event(
         type=payload.type,
-        title=payload.title,
+        title=payload.title or "AI 正在生成标题…",
         description=payload.description,
         members=payload.members,
         author_id=user.id,
-        time_label=payload.time_label or now.strftime("今天 %H:%M"),
-        event_date=payload.event_date or now.strftime("%Y-%m-%d"),
+        time_label=payload.time_label or now_bj.strftime("今天 %H:%M"),
+        event_date=payload.event_date or now_bj.strftime("%Y-%m-%d"),
         mood=payload.mood,
         ai_status="pending",
     )
@@ -284,6 +284,9 @@ def worker_complete(
         ev = db.query(models.Event).get(job.event_id)
         if ev:
             r = body.result or {}
+            ai_title = (r.get("title") or "").strip()
+            if ai_title:
+                ev.title = ai_title
             ev.ai_summary = r.get("summary") or None
             ev.ai_cause = r.get("cause") or None
             ev.ai_suggest = r.get("suggest") or None

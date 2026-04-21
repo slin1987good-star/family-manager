@@ -147,6 +147,7 @@ def build_event_analysis_prompt(db: Session, event: models.Event) -> str:
         "## 你要返回的 JSON",
         "只返回 JSON，不要任何解释文字，不要 markdown 代码块，键名完全用英文：",
         "{",
+        '  "title":   "事件标题，8-15 字，准确概括这件事，类似新闻标题的简洁感",',
         '  "summary": "一句话提炼这件事，20-35 字，中文",',
         '  "cause":  ["原因 1", "原因 2", "原因 3"],  // 2-3 条；非冲突类可为空数组',
         '  "suggest":["建议 1", "建议 2", "建议 3"],  // 2-3 条具体可执行',
@@ -155,7 +156,7 @@ def build_event_analysis_prompt(db: Session, event: models.Event) -> str:
         "",
         "注意：",
         "- 所有文本保留家庭内部称呼（爸爸/妈妈/女儿/儿子），不要替换成昵称。",
-        "- 不要输出 cause/suggest 之外的任何字段。",
+        "- title 是短标题不是句子，不要标点收尾。",
         "- script 是一段自然的口语，不是标题。",
     ]
     return "\n".join(parts)
