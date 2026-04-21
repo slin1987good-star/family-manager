@@ -1066,9 +1066,25 @@ const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
 };
 
 /* ========== screens: event detail ========== */
-const EventDetailScreen = ({ event: rawEvent, onClose, currentUser }) => {
+const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed }) => {
   if (!rawEvent) return null;
+  const [regenBusy, setRegenBusy] = useState(false);
   const event = localizeEvent(rawEvent, currentUser.id);
+
+  const regenerate = async () => {
+    if (regenBusy || rawEvent.aiStatus === 'pending') return;
+    setRegenBusy(true);
+    try {
+      const updated = await api(`/api/events/${rawEvent.id}/reanalyze`, { method: 'POST' });
+      // status is now pending; keep old analysis visible. The App's polling
+      // effect will pick up the final result when the worker finishes.
+      onReanalyzed && onReanalyzed(updated);
+    } catch (e) {
+      alert('重新生成失败：' + e.message);
+    } finally {
+      setRegenBusy(false);
+    }
+  };
   const author = FAMILY[event.author];
   const authorName = displayName(event.author, currentUser.id);
   const heroTone = event.type === 'conflict' ? 'coral' : event.type === 'important' ? 'honey' : event.type === 'habit' ? 'olive' : 'lavender';
@@ -1153,9 +1169,15 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser }) => {
         {!event.aiSummary && event.aiStatus === 'failed' && (
           <div className="card" style={{ padding: 14, borderLeft: '3px solid var(--coral)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--coral)' }}>AI 分析失败</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4, marginBottom: 10 }}>
               家里的 worker 可能没跑起来，或这条事件太复杂。
             </div>
+            {currentUser.role === 'editor' && (
+              <button onClick={regenerate} disabled={regenBusy} className="btn btn-primary"
+                      style={{ fontSize: 12, padding: '6px 14px' }}>
+                🔄 {regenBusy ? '重新生成中…' : '重新生成'}
+              </button>
+            )}
           </div>
         )}
         {event.aiSummary && (
@@ -1166,7 +1188,13 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser }) => {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}><Icon name="sparkle" size={15}/></div>
               <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>AI 温柔分析</div>
-              <span className="chip" style={{ background: 'rgba(255,255,255,0.6)', color: 'var(--ink-soft)', marginLeft: 'auto', fontSize: 10 }}>已更新</span>
+              <span className="chip" style={{
+                background: 'rgba(255,255,255,0.6)',
+                color: rawEvent.aiStatus === 'pending' ? 'var(--coral)' : 'var(--ink-soft)',
+                marginLeft: 'auto', fontSize: 10,
+              }}>
+                {rawEvent.aiStatus === 'pending' ? '重新生成中…' : '已更新'}
+              </span>
             </div>
             <div style={{
               padding: 12, background: 'rgba(255,255,255,0.6)', borderRadius: 12,
@@ -1222,15 +1250,23 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser }) => {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button className="btn btn-primary" style={{ flex: 1, fontSize: 13 }}>
-                <Icon name="heart" size={13} style={{ marginRight: 4 }}/>收藏建议
-              </button>
-              <button style={{
-                border: 0, background: 'rgba(255,255,255,0.6)', color: 'var(--ink)',
-                padding: '10px 14px', borderRadius: 999, fontWeight: 700, fontSize: 13, cursor: 'pointer',
-              }}>🔄 重新生成</button>
-            </div>
+            {currentUser.role === 'editor' && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <button className="btn btn-primary" style={{ flex: 1, fontSize: 13 }}
+                        title="（功能建设中）">
+                  <Icon name="heart" size={13} style={{ marginRight: 4 }}/>收藏建议
+                </button>
+                <button onClick={regenerate}
+                  disabled={regenBusy || rawEvent.aiStatus === 'pending'}
+                  style={{
+                    border: 0, background: 'rgba(255,255,255,0.6)', color: 'var(--ink)',
+                    padding: '10px 14px', borderRadius: 999, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                    opacity: (regenBusy || rawEvent.aiStatus === 'pending') ? 0.5 : 1,
+                  }}>
+                  🔄 {rawEvent.aiStatus === 'pending' ? '生成中…' : '重新生成'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -2366,7 +2402,14 @@ const App = () => {
       break;
     case 'detail':
       screen = <EventDetailScreen event={selectedEvent} currentUser={currentUser}
-        onClose={() => { setScene('timeline'); setActiveTab('timeline'); }}/>;
+        onClose={() => { setScene('timeline'); setActiveTab('timeline'); }}
+        onReanalyzed={(updated) => {
+          const u = normalizeEvent(updated);
+          const idx = EVENTS.findIndex(e => e.id === u.id);
+          if (idx >= 0) EVENTS[idx] = u;
+          setSelectedEvent(u);
+          rerender();
+        }}/>;
       break;
     case 'advice':
       screen = <AdviceScreen currentUser={currentUser} onBack={() => { setScene('home'); setActiveTab('home'); }}/>;

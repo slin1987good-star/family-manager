@@ -254,6 +254,39 @@ def get_event(
     return event
 
 
+@app.post("/api/events/{event_id}/reanalyze", response_model=schemas.EventOut)
+def reanalyze_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    me: models.User = Depends(auth.current_user),
+):
+    """Re-run AI analysis for an event. Old summary/cause/suggest/script stay
+    visible while the new job is running so the user keeps context."""
+    if me.role != "editor":
+        raise HTTPException(403, "只有爸爸/妈妈可以重新生成 AI 分析")
+    event = db.query(models.Event).get(event_id)
+    if not event:
+        raise HTTPException(404, "event not found")
+
+    # Supersede any in-flight analysis for this event so the worker doesn't
+    # race us.
+    (
+        db.query(models.AiJob)
+        .filter(models.AiJob.event_id == event_id)
+        .filter(models.AiJob.job_type == "event_analysis")
+        .filter(models.AiJob.status.in_(["pending", "processing"]))
+        .update({"status": "failed", "error": "superseded by reanalyze"},
+                synchronize_session=False)
+    )
+
+    event.ai_status = "pending"
+    prompt = ai_mod.build_event_analysis_prompt(db, event)
+    db.add(models.AiJob(job_type="event_analysis", event_id=event.id, prompt=prompt))
+    db.commit()
+    db.refresh(event)
+    return event
+
+
 # ---- Worker endpoints --------------------------------------------------
 # Polled by the Mac worker; authenticated with a shared token (not user PIN).
 
