@@ -3,7 +3,11 @@
 # at login, stays running in the background, and restarts if it crashes.
 #
 # Usage:
-#   FAMILY_WORKER_TOKEN=<token> ./install.sh
+#   FAMILY_WORKER_TOKEN=<fly worker secret> \
+#   LLM_API_KEY=<sk-... Anthropic-compatible key> \
+#   LLM_BASE_URL=https://tdyun.ai  # optional, defaults to api.anthropic.com
+#   LLM_MODEL=claude-sonnet-4-6    # optional
+#   ./install.sh
 #
 # Reinstall: re-run with the same env. Uninstall: launchctl bootout + delete plist.
 
@@ -11,17 +15,16 @@ set -e
 
 if [ -z "$FAMILY_WORKER_TOKEN" ]; then
   echo "error: FAMILY_WORKER_TOKEN is required" >&2
-  echo "   get it with: flyctl secrets list -a gw-family-manager (only hash is shown)" >&2
-  echo "   or: cat the token you saved when running 'fly secrets set WORKER_TOKEN=...'" >&2
   exit 1
 fi
 
-if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-  echo "error: CLAUDE_CODE_OAUTH_TOKEN is required" >&2
-  echo "   run 'claude setup-token' in a terminal first; it opens a browser" >&2
-  echo "   and prints a long-lived sk-ant-oat01-... token you paste here." >&2
+if [ -z "$LLM_API_KEY" ]; then
+  echo "error: LLM_API_KEY is required (Anthropic-compatible sk-... key)" >&2
   exit 1
 fi
+
+LLM_BASE_URL="${LLM_BASE_URL:-https://api.anthropic.com}"
+LLM_MODEL="${LLM_MODEL:-claude-sonnet-4-6}"
 
 LABEL="com.gw.family-manager.worker"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -36,12 +39,6 @@ PYTHON_BIN="$(command -v python3)"
 if [ -z "$PYTHON_BIN" ]; then
   echo "error: python3 not found in PATH" >&2
   exit 1
-fi
-
-CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude)}"
-if [ -z "$CLAUDE_BIN" ]; then
-  echo "warning: 'claude' not on PATH; plist will rely on PATH at login" >&2
-  CLAUDE_BIN="claude"
 fi
 
 cat > "$PLIST_PATH" <<EOF
@@ -59,8 +56,9 @@ cat > "$PLIST_PATH" <<EOF
   <dict>
     <key>FAMILY_WORKER_TOKEN</key><string>$FAMILY_WORKER_TOKEN</string>
     <key>FAMILY_API</key><string>${FAMILY_API:-https://gw-family-manager.fly.dev}</string>
-    <key>CLAUDE_BIN</key><string>$CLAUDE_BIN</string>
-    <key>CLAUDE_CODE_OAUTH_TOKEN</key><string>$CLAUDE_CODE_OAUTH_TOKEN</string>
+    <key>LLM_API_KEY</key><string>$LLM_API_KEY</string>
+    <key>LLM_BASE_URL</key><string>$LLM_BASE_URL</string>
+    <key>LLM_MODEL</key><string>$LLM_MODEL</string>
     <key>PATH</key><string>$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>

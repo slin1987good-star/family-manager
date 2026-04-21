@@ -3,18 +3,16 @@
 Family Manager AI Worker
 
 Runs on the Mac as a LaunchAgent. Polls the Fly.io backend for pending AI
-analysis jobs and dispatches each prompt straight to api.anthropic.com using
-the user's Claude Max OAuth bearer token (no Anthropic API key required).
-
-This bypasses `claude -p` because Claude Desktop's keychain-stored OAuth
-token expires within a couple of days and the CLI does not refresh
-automatically in headless contexts.
+analysis jobs and dispatches each prompt to an Anthropic-compatible proxy
+(e.g. tdyun.ai, api.anthropic.com directly, or any New API gateway) using a
+stable API key.
 
 Env vars:
   FAMILY_API            default https://gw-family-manager.fly.dev
   FAMILY_WORKER_TOKEN   required; same value as WORKER_TOKEN secret on Fly
-  CLAUDE_CODE_OAUTH_TOKEN  required; long-lived token (see install.sh)
-  CLAUDE_MODEL          default "claude-sonnet-4-5"
+  LLM_API_KEY           required; Anthropic-compatible sk-... key
+  LLM_BASE_URL          default https://api.anthropic.com
+  LLM_MODEL             default claude-sonnet-4-6
 """
 import json
 import os
@@ -26,8 +24,9 @@ from urllib.error import HTTPError
 
 BASE = os.environ.get("FAMILY_API", "https://gw-family-manager.fly.dev")
 WORKER_TOKEN = os.environ.get("FAMILY_WORKER_TOKEN", "")
-OAUTH_TOKEN = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
-MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5")
+API_KEY = os.environ.get("LLM_API_KEY", "")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.anthropic.com").rstrip("/")
+MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
 POLL_IDLE_SECONDS = 20
 POLL_BUSY_SECONDS = 2
 CLAUDE_TIMEOUT = 120
@@ -39,8 +38,8 @@ _rate_limit_cooldown_until = 0.0  # unix seconds
 if not WORKER_TOKEN:
     print("FAMILY_WORKER_TOKEN required", file=sys.stderr)
     sys.exit(1)
-if not OAUTH_TOKEN:
-    print("CLAUDE_CODE_OAUTH_TOKEN required", file=sys.stderr)
+if not API_KEY:
+    print("LLM_API_KEY required", file=sys.stderr)
     sys.exit(1)
 
 
@@ -78,22 +77,22 @@ def fail(job_id, error):
 
 def call_anthropic(prompt: str) -> str:
     """
-    Call api.anthropic.com/v1/messages with the Claude Max OAuth bearer token.
-    Requires the anthropic-beta: oauth-2025-04-20 header — without it the API
-    treats the request as API-key-only and rejects OAuth tokens.
+    Call <LLM_BASE_URL>/v1/messages with an Anthropic-compatible API key.
+    Works with the direct api.anthropic.com endpoint or any New-API / OpenAI-
+    proxy-style gateway that forwards the Anthropic message format (x-api-key
+    header, Anthropic JSON schema).
     """
     payload = {
         "model": MODEL,
         "max_tokens": MAX_OUTPUT_TOKENS,
-        "system": "You are Claude Code, a caring family assistant. Always reply in valid JSON as requested.",
+        "system": "You are a caring family assistant. Always reply in valid JSON exactly as requested.",
         "messages": [{"role": "user", "content": prompt}],
     }
     req = urlrequest.Request(
-        "https://api.anthropic.com/v1/messages",
+        f"{LLM_BASE_URL}/v1/messages",
         method="POST", data=json.dumps(payload).encode(),
         headers={
-            "Authorization": f"Bearer {OAUTH_TOKEN}",
-            "anthropic-beta": "oauth-2025-04-20",
+            "x-api-key": API_KEY,
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         },
@@ -103,7 +102,7 @@ def call_anthropic(prompt: str) -> str:
             body = json.loads(r.read())
     except HTTPError as e:
         err_body = e.read().decode(errors="replace")
-        raise RuntimeError(f"anthropic HTTP {e.code}: {err_body[:400]}") from e
+        raise RuntimeError(f"LLM HTTP {e.code}: {err_body[:400]}") from e
 
     # response.content is a list of {type:"text", text:"..."}
     parts = [b["text"] for b in body.get("content", []) if b.get("type") == "text"]
