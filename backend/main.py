@@ -132,6 +132,46 @@ def list_users(db: Session = Depends(get_db), _: models.User = Depends(auth.curr
     return db.query(models.User).order_by(models.User.id).all()
 
 
+class UserUpdate(BaseModel):
+    """Patch-style update. name/role/id/emoji stay immutable — they anchor
+    the perspective rewriting logic and avatar styling."""
+    nickname: Optional[str] = None
+    profile: Optional[dict] = None  # merged (shallow) into existing profile
+
+
+@app.patch("/api/users/{user_id}", response_model=schemas.UserOut)
+def update_user(
+    user_id: str,
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    me: models.User = Depends(auth.current_user),
+):
+    # Permission: editors (dad/mom) can edit anyone; viewers only themselves.
+    if me.id != user_id and me.role != "editor":
+        raise HTTPException(403, "只能编辑自己的档案；编辑者（爸/妈）可以编辑所有人")
+
+    target = db.query(models.User).get(user_id)
+    if not target:
+        raise HTTPException(404, "user not found")
+
+    if payload.nickname is not None:
+        target.nickname = payload.nickname.strip() or target.nickname
+
+    if payload.profile is not None:
+        current = dict(target.profile or {})
+        for k, v in payload.profile.items():
+            # allow null/empty arrays to clear a field
+            if v is None:
+                current.pop(k, None)
+            else:
+                current[k] = v
+        target.profile = current
+
+    db.commit()
+    db.refresh(target)
+    return target
+
+
 @app.get("/api/events", response_model=List[schemas.EventOut])
 def list_events(db: Session = Depends(get_db), _: models.User = Depends(auth.current_user)):
     return db.query(models.Event).order_by(models.Event.created_at.desc()).all()

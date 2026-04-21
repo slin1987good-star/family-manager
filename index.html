@@ -1502,12 +1502,141 @@ const aiPortrait = (m) => {
   return map[m.id] || '';
 };
 
-const MemberDetailScreen = ({ memberId, onBack }) => {
+const ChipEditor = ({ items, onChange, color = 'coral' }) => {
+  const [input, setInput] = useState('');
+  const add = () => {
+    const v = input.trim();
+    if (!v || items.includes(v)) return setInput('');
+    onChange([...items, v]);
+    setInput('');
+  };
+  const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {items.map((t, i) => (
+        <span key={i} className="chip" style={{
+          background: `var(--${color}-soft)`, color: 'var(--ink)', fontWeight: 600,
+          paddingRight: 4, display: 'inline-flex', alignItems: 'center', gap: 4,
+        }}>
+          {t}
+          <button onClick={() => remove(i)} style={{
+            border: 0, background: 'rgba(0,0,0,0.08)', color: 'var(--ink-soft)',
+            cursor: 'pointer', padding: 0, width: 16, height: 16,
+            borderRadius: '50%', fontSize: 10, lineHeight: '16px',
+          }}>×</button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); add(); }
+          if (e.key === 'Backspace' && !input && items.length) remove(items.length - 1);
+        }}
+        onBlur={add}
+        placeholder="+ 添加"
+        style={{
+          border: '1px dashed var(--line)', outline: 'none', background: 'transparent',
+          padding: '3px 10px', borderRadius: 999, fontSize: 12,
+          width: 80, color: 'var(--ink)', fontFamily: 'inherit',
+        }}
+      />
+    </div>
+  );
+};
+
+const EditableRow = ({ label, value, onChange, placeholder }) => (
+  <div style={{ display: 'flex', gap: 10, padding: '6px 0', fontSize: 13, lineHeight: 1.55, alignItems: 'center' }}>
+    <div style={{ width: 72, color: 'var(--ink-faint)', flexShrink: 0 }}>{label}</div>
+    <input
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder || ''}
+      style={{
+        flex: 1, border: '1px solid var(--line)', background: 'var(--surface-muted)',
+        padding: '6px 10px', borderRadius: 8, fontSize: 13,
+        color: 'var(--ink)', fontFamily: 'inherit', outline: 'none',
+      }}/>
+  </div>
+);
+
+const MemberDetailScreen = ({ memberId, onBack, currentUser, onUpdated }) => {
   const m = FAMILY[memberId];
   if (!m) return null;
 
   const isKid = m.id === 'daughter' || m.id === 'son';
   const accent = m.id === 'dad' ? 'coral' : m.id === 'mom' ? 'olive' : m.id === 'daughter' ? 'lavender' : 'honey';
+  const canEdit = currentUser && (currentUser.id === m.id || currentUser.role === 'editor');
+
+  const [editMode, setEditMode] = useState(false);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Seed the draft when entering edit mode (or member switches).
+  const beginEdit = () => {
+    setForm({
+      nickname: m.nickname || '',
+      age: m.age ?? '',
+      birthday: m.birthday || '',
+      zodiac: m.zodiac || '',
+      mbti: m.mbti || '',
+      occupation: m.occupation || '',
+      company: m.company || '',
+      workHours: m.workHours || '',
+      commute: m.commute || '',
+      favFood: m.favFood || '',
+      strengths: Array.isArray(m.strengths) ? [...m.strengths] : [],
+      improvements: Array.isArray(m.improvements) ? [...m.improvements] : [],
+      hobbies: Array.isArray(m.hobbies) ? [...m.hobbies] : [],
+    });
+    setEditMode(true);
+  };
+  const cancelEdit = () => { setForm(null); setEditMode(false); };
+
+  const save = async () => {
+    if (!form || saving) return;
+    setSaving(true);
+    try {
+      // Split the patch: `nickname` is a top-level column, everything else
+      // goes into the `profile` JSON.
+      const profile = {
+        age: form.age === '' ? null : Number(form.age) || null,
+        birthday: form.birthday || null,
+        zodiac: form.zodiac || null,
+        mbti: form.mbti || null,
+        occupation: form.occupation || null,
+        company: form.company || null,
+        workHours: form.workHours || null,
+        commute: form.commute || null,
+        favFood: form.favFood || null,
+        strengths: form.strengths,
+        improvements: form.improvements,
+        hobbies: form.hobbies,
+      };
+      // keep grade untouched (server merges the rest of profile)
+      if (m.grade) profile.grade = m.grade;
+      const updated = await api(`/api/users/${m.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ nickname: form.nickname, profile }),
+      });
+      // Rebuild FAMILY entry from the server response
+      const p = updated.profile || {};
+      FAMILY[m.id] = {
+        ...updated, ...p,
+        tag: updated.role === 'editor' ? '编辑者' : '查看者',
+        recordCount: p.recordCount ?? m.recordCount ?? 0,
+      };
+      MEMBERS_LIST = ['dad','mom','daughter','son'].map(id => FAMILY[id]).filter(Boolean);
+      onUpdated && onUpdated();
+      setEditMode(false);
+    } catch (e) {
+      alert('保存失败：' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
     <div className="app scroll-hide">
@@ -1516,105 +1645,180 @@ const MemberDetailScreen = ({ memberId, onBack }) => {
         background: `linear-gradient(180deg, var(--${accent}-soft) 0%, var(--bg) 100%)`,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <button onClick={onBack} style={{
+          <button onClick={editMode ? cancelEdit : onBack} style={{
             border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
-          }}><Icon name="arrow-left" size={18}/></button>
-          <button style={{
-            border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
-          }}><Icon name="edit" size={15}/></button>
+          }}>
+            <Icon name={editMode ? 'close' : 'arrow-left'} size={editMode ? 16 : 18}/>
+          </button>
+          {canEdit && (
+            editMode ? (
+              <button onClick={save} disabled={saving} style={{
+                border: 0, background: 'var(--coral)',
+                padding: '0 16px', height: 36, borderRadius: 999,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                boxShadow: 'var(--shadow-soft)', color: '#fff', cursor: 'pointer',
+                fontSize: 13, fontWeight: 700, opacity: saving ? 0.6 : 1,
+              }}>
+                <Icon name="check" size={15}/>{saving ? '保存中…' : '保存'}
+              </button>
+            ) : (
+              <button onClick={beginEdit} style={{
+                border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+              }}><Icon name="edit" size={15}/></button>
+            )
+          )}
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <Avatar member={m} size="lg"/>
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 22, fontWeight: 800 }}>{m.name}</div>
-              <div className="hand" style={{ fontSize: 20, color: `var(--${accent})`, lineHeight: 1 }}>{m.nickname}</div>
+              {editMode ? (
+                <input
+                  value={form.nickname}
+                  onChange={e => upd('nickname', e.target.value)}
+                  placeholder="昵称"
+                  style={{
+                    border: '1px solid var(--line)', background: 'var(--surface)',
+                    padding: '4px 10px', borderRadius: 8, fontSize: 14,
+                    color: `var(--${accent})`, fontFamily: 'var(--font-hand)', fontWeight: 700,
+                    width: 140, outline: 'none',
+                  }}/>
+              ) : (
+                <div className="hand" style={{ fontSize: 20, color: `var(--${accent})`, lineHeight: 1 }}>{m.nickname}</div>
+              )}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
-              {m.age} 岁 · {m.zodiac} · {m.mbti}
-            </div>
-            <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+            {!editMode && (
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
+                {m.age} 岁 · {m.zodiac} · {m.mbti}
+              </div>
+            )}
+            <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <span className="chip" style={{ background: m.role === 'editor' ? 'var(--coral-soft)' : 'var(--lavender-soft)', color: 'var(--ink)' }}>
                 {m.role === 'editor' ? '✎ 编辑者' : '👁 查看者'}
               </span>
-              <span className="chip">🎂 {m.birthday}</span>
+              {!editMode && <span className="chip">🎂 {m.birthday}</span>}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-          <MiniStat label="记录事件" value={m.recordCount}/>
-          <MiniStat label="收到建议" value={Math.round(m.recordCount * 0.4)}/>
-          <MiniStat label="习惯打卡" value={isKid ? 12 : 8}/>
-        </div>
+        {!editMode && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+            <MiniStat label="记录事件" value={m.recordCount || 0}/>
+            <MiniStat label="收到建议" value={Math.round((m.recordCount || 0) * 0.4)}/>
+            <MiniStat label="习惯打卡" value={isKid ? 12 : 8}/>
+          </div>
+        )}
       </div>
 
-      <div style={{ padding: '16px 16px 100px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Section title={isKid ? '📚 学习' : '💼 工作'}>
-          <InfoRow label="身份" value={m.occupation}/>
-          <InfoRow label={isKid ? '学校班级' : '所在单位'} value={m.company}/>
-          <InfoRow label="时间" value={m.workHours}/>
-          <InfoRow label="通勤" value={m.commute}/>
-        </Section>
+      <div style={{ padding: '16px 16px 120px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {editMode ? (
+          <>
+            <Section title="🪪 基础">
+              <EditableRow label="年龄" value={form.age} onChange={v => upd('age', v.replace(/\D/g, ''))} placeholder="岁数"/>
+              <EditableRow label="生日" value={form.birthday} onChange={v => upd('birthday', v)} placeholder="YYYY-MM-DD"/>
+              <EditableRow label="星座" value={form.zodiac} onChange={v => upd('zodiac', v)} placeholder="♓ / 白羊 / ..."/>
+              <EditableRow label="MBTI" value={form.mbti} onChange={v => upd('mbti', v.toUpperCase())} placeholder="INTJ / ENFP ..."/>
+            </Section>
 
-        {m.grade && (
-          <Section title="📊 最近成绩">
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-              padding: '8px 12px', background: `var(--${accent}-soft)`, borderRadius: 10,
-              fontSize: 13, color: 'var(--ink)', fontWeight: 700,
-            }}>
-              🏆 {m.grade.rank}
+            <Section title={isKid ? '📚 学习' : '💼 工作'}>
+              <EditableRow label="身份" value={form.occupation} onChange={v => upd('occupation', v)}/>
+              <EditableRow label={isKid ? '学校班级' : '所在单位'} value={form.company} onChange={v => upd('company', v)}/>
+              <EditableRow label="时间" value={form.workHours} onChange={v => upd('workHours', v)}/>
+              <EditableRow label="通勤" value={form.commute} onChange={v => upd('commute', v)}/>
+            </Section>
+
+            <Section title="🌱 性格画像">
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>闪光点</div>
+              <ChipEditor items={form.strengths} onChange={v => upd('strengths', v)} color="olive"/>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, margin: '14px 0 8px' }}>成长空间</div>
+              <ChipEditor items={form.improvements} onChange={v => upd('improvements', v)} color="coral"/>
+            </Section>
+
+            <Section title="❤️ 喜好">
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>爱好</div>
+              <ChipEditor items={form.hobbies} onChange={v => upd('hobbies', v)} color={accent}/>
+              <div style={{ marginTop: 14 }}>
+                <EditableRow label="最爱吃" value={form.favFood} onChange={v => upd('favFood', v)}/>
+              </div>
+            </Section>
+
+            {m.grade && (
+              <div style={{ padding: 12, background: 'var(--surface-muted)', borderRadius: 12,
+                fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+                📊 成绩档保留不动。后续单独出一个编辑页（科目/名次要按学期维护）。
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <Section title={isKid ? '📚 学习' : '💼 工作'}>
+              <InfoRow label="身份" value={m.occupation}/>
+              <InfoRow label={isKid ? '学校班级' : '所在单位'} value={m.company}/>
+              <InfoRow label="时间" value={m.workHours}/>
+              <InfoRow label="通勤" value={m.commute}/>
+            </Section>
+
+            {m.grade && (
+              <Section title="📊 最近成绩">
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                  padding: '8px 12px', background: `var(--${accent}-soft)`, borderRadius: 10,
+                  fontSize: 13, color: 'var(--ink)', fontWeight: 700,
+                }}>
+                  🏆 {m.grade.rank}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {m.grade.subjects.map(s => {
+                    const trendColor = s.trend === 'up' ? 'var(--olive)' : s.trend === 'down' ? 'var(--coral)' : 'var(--ink-faint)';
+                    const trendArrow = s.trend === 'up' ? '↑' : s.trend === 'down' ? '↓' : '—';
+                    return (
+                      <div key={s.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 44, fontSize: 13, color: 'var(--ink-soft)', fontWeight: 700 }}>{s.k}</div>
+                        <div style={{ flex: 1, height: 8, background: 'var(--surface-muted)', borderRadius: 999, overflow: 'hidden' }}>
+                          <div style={{
+                            width: `${s.s}%`, height: '100%',
+                            background: `var(--${accent})`, borderRadius: 999,
+                          }}/>
+                        </div>
+                        <div style={{ width: 48, textAlign: 'right', fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>
+                          {s.s}<span style={{ fontSize: 11, color: trendColor, marginLeft: 3 }}>{trendArrow}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Section>
+            )}
+
+            <Section title="🌱 性格画像">
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>闪光点</div>
+              <TagRow items={m.strengths || []} color="olive"/>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, margin: '14px 0 8px' }}>成长空间</div>
+              <TagRow items={m.improvements || []} color="coral"/>
+            </Section>
+
+            <Section title="❤️ 喜好">
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>爱好</div>
+              <TagRow items={m.hobbies || []} color={accent}/>
+              <InfoRow label="最爱吃" value={m.favFood}/>
+            </Section>
+
+            <div className="card ai-card" style={{ padding: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Icon name="sparkle" size={14} color="var(--lavender)"/>
+                <div style={{ fontSize: 12, fontWeight: 800 }}>AI · {m.name}的关键词</div>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.6 }}>
+                {aiPortrait(m)}
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {m.grade.subjects.map(s => {
-                const trendColor = s.trend === 'up' ? 'var(--olive)' : s.trend === 'down' ? 'var(--coral)' : 'var(--ink-faint)';
-                const trendArrow = s.trend === 'up' ? '↑' : s.trend === 'down' ? '↓' : '—';
-                return (
-                  <div key={s.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 44, fontSize: 13, color: 'var(--ink-soft)', fontWeight: 700 }}>{s.k}</div>
-                    <div style={{ flex: 1, height: 8, background: 'var(--surface-muted)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{
-                        width: `${s.s}%`, height: '100%',
-                        background: `var(--${accent})`, borderRadius: 999,
-                      }}/>
-                    </div>
-                    <div style={{ width: 48, textAlign: 'right', fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>
-                      {s.s}<span style={{ fontSize: 11, color: trendColor, marginLeft: 3 }}>{trendArrow}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
+          </>
         )}
-
-        <Section title="🌱 性格画像">
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>闪光点</div>
-          <TagRow items={m.strengths} color="olive"/>
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, margin: '14px 0 8px' }}>成长空间</div>
-          <TagRow items={m.improvements} color="coral"/>
-        </Section>
-
-        <Section title="❤️ 喜好">
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 8 }}>爱好</div>
-          <TagRow items={m.hobbies} color={accent}/>
-          <InfoRow label="最爱吃" value={m.favFood}/>
-        </Section>
-
-        <div className="card ai-card" style={{ padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <Icon name="sparkle" size={14} color="var(--lavender)"/>
-            <div style={{ fontSize: 12, fontWeight: 800 }}>AI · {m.name}的关键词</div>
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.6 }}>
-            {aiPortrait(m)}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -2172,8 +2376,9 @@ const App = () => {
         onOpenTweaks={() => setShowTweaks(true)} onLogout={logout}/>;
       break;
     case 'member':
-      screen = <MemberDetailScreen memberId={selectedMemberId}
-        onBack={() => { setScene('settings'); setActiveTab('settings'); }}/>;
+      screen = <MemberDetailScreen memberId={selectedMemberId} currentUser={currentUser}
+        onBack={() => { setScene('settings'); setActiveTab('settings'); }}
+        onUpdated={rerender}/>;
       break;
     default:
       screen = <HomeScreen currentUser={currentUser}/>;
