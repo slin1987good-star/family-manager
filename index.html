@@ -936,7 +936,9 @@ const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
     if (!canSave) return;
     setSaving(true);
     try {
-      await onSave({ type, desc, members, mood });
+      // Note: backend field is `description`, not `desc`. Fix-up happens
+      // here so the rest of the UI can keep using `desc` in-memory.
+      await onSave({ type, description: desc, members, mood });
     } finally {
       // onSave navigates away on success, so this usually doesn't flash;
       // it's just a safety net if the caller keeps us mounted after failure.

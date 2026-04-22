@@ -130,19 +130,35 @@ def build_event_analysis_prompt(db: Session, event: models.Event) -> str:
     related = find_related(db, event)
     ctx = latest_context(db)
 
+    members_label = "、".join(event.members or []) or "（未指定）"
+    desc_block = _truncate(event.description, 400) or "（记录者未填写描述）"
+
     parts = [
-        "你是一位温柔、有洞察力的家庭顾问。以下是一个家庭最近发生的一件事，请你用简短有力的方式帮这家人分析它。",
+        "你是一位温柔、有洞察力的家庭顾问。",
         "",
-        "## 家庭成员",
-        member_card(db),
+        "**重要原则：你的 summary / cause / suggest / script 都必须 100% 基于"
+        "下面的「本次事件」内容本身。家庭成员档案和历史事件仅作为背景参考——"
+        "用来理解这家人是什么人，但不能替代本次事件要分析的主体。**",
         "",
+        "━━━ 本次要分析的事件 ━━━",
+        f"类型：{event.type}",
+        f"标题：{event.title}",
+        f"描述：{desc_block}",
+        f"涉及成员：{members_label}",
+        f"记录者：{event.author_id or '?'}",
     ]
+    if event.mood:
+        parts.append(f"记录者心情：{event.mood}")
+    parts += ["━━━━━━━━━━━━━━━", ""]
+
+    parts += ["## 家庭成员档案（理解每个人是什么样的人）", member_card(db), ""]
 
     if ctx:
-        parts += ["## 近期家庭状态", ctx.strip(), ""]
+        parts += ["## 近期家庭状态（前几天的关系氛围，背景参考）",
+                  ctx.strip(), ""]
 
     if related:
-        parts += ["## 相关历史事件（按相关性排序）"]
+        parts += ["## 相关历史事件（仅作风格参考，不要复述它们）"]
         for e in related:
             summary = e.ai_summary or _truncate(e.description, 60) or e.title
             parts.append(
@@ -150,32 +166,22 @@ def build_event_analysis_prompt(db: Session, event: models.Event) -> str:
             )
         parts.append("")
 
-    members_label = "、".join(event.members or []) or "（未指定）"
-    parts += [
-        "## 本次事件",
-        f"- 类型：{event.type}",
-        f"- 标题：{event.title}",
-        f"- 描述：{_truncate(event.description, 400) or '（无描述）'}",
-        f"- 涉及成员：{members_label}",
-        f"- 记录者：{event.author_id or '?'}",
-    ]
-    if event.mood:
-        parts.append(f"- 记录者当时心情：{event.mood}")
-    parts.append("")
-
     parts += [
         "## 你要返回的 JSON",
         "只返回 JSON，不要任何解释文字，不要 markdown 代码块，键名完全用英文：",
         "{",
-        '  "title":   "事件标题，8-15 字，准确概括这件事，类似新闻标题的简洁感",',
-        '  "summary": "一句话提炼这件事，20-35 字，中文",',
+        '  "title":   "事件标题，8-15 字，准确概括本次事件，类似新闻标题的简洁感",',
+        '  "summary": "一句话提炼本次事件，20-35 字，中文",',
         '  "cause":  ["原因 1", "原因 2", "原因 3"],  // 2-3 条；非冲突类可为空数组',
         '  "suggest":["建议 1", "建议 2", "建议 3"],  // 2-3 条具体可执行',
         '  "script": "家长可以直接开口说的一句话；不适用时返回空串"',
         "}",
         "",
-        "注意：",
-        "- 所有文本保留家庭内部称呼（爸爸/妈妈/女儿/儿子），不要替换成昵称。",
+        "硬性要求：",
+        "- summary / title 必须直接反映本次事件的内容，不要写历史事件或近期状态的内容。",
+        "- 如果记录者当时心情是'无奈''失望'等负面情绪，说明这件事对 TA 有困扰，cause/suggest 要认真对待，不要过度美化。",
+        "- 如果是 habit 类型且记录者描述指向「不良习惯」，要按改善坏习惯的角度给建议，不能解读成'在培养好习惯'。",
+        "- 所有文本用家庭内部称呼（爸爸/妈妈/女儿/儿子），不要替换成昵称。",
         "- title 是短标题不是句子，不要标点收尾。",
         "- script 是一段自然的口语，不是标题。",
     ]
