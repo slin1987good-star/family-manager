@@ -1973,12 +1973,18 @@ const MemberDetailScreen = ({ memberId, onBack, currentUser, onUpdated }) => {
                         width: 70, border: '1px solid var(--line)', background: 'var(--surface-muted)',
                         padding: '6px 8px', borderRadius: 8, fontSize: 13, outline: 'none',
                       }}/>
-                      <input type="number" min="0" max="100" value={s.s}
+                      <input type="text" inputMode="numeric"
+                        value={s.s === '' || s.s === null || s.s === undefined ? '' : String(s.s)}
                         onChange={e => {
+                          // digits only; cap at 100; allow empty string
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 3);
+                          let val;
+                          if (digits === '') val = '';
+                          else val = Math.min(100, parseInt(digits, 10));
                           const next = [...form.grade.subjects];
-                          next[i] = { ...next[i], s: Number(e.target.value) || 0 };
+                          next[i] = { ...next[i], s: val };
                           upd('grade', { ...form.grade, subjects: next });
-                        }} style={{
+                        }} placeholder="分" style={{
                           width: 60, border: '1px solid var(--line)', background: 'var(--surface-muted)',
                           padding: '6px 8px', borderRadius: 8, fontSize: 13, outline: 'none',
                         }}/>
