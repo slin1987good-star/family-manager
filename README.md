@@ -36,16 +36,18 @@
 
 ```
 📱 React 18 + Babel Standalone       ← 单文件 index.html，无构建步骤
-        ↓ HTTPS
+        ↓ 同源 HTTPS
 🛫 FastAPI + SQLAlchemy + Postgres   ← Fly.io，sin 区域
+    · 事件入库
+    · 内置 asyncio 循环：扫 ai_jobs 队列 + 每日报告定时
+    · httpx 调 LLM API
         ↓ HTTPS
-🤖 Anthropic-compatible LLM API      ← 可用官方 api.anthropic.com 或国内代理（tdyun.ai 等）
-        ↑
-🖥 Mac worker (LaunchAgent)          ← 轮询任务 + 调 LLM + 回传结果
+🤖 Anthropic-compatible LLM API      ← api.anthropic.com / tdyun.ai / 任何 New API 网关
 ```
 
 - **前端**：`index.html` 一个文件，React 18 via CDN + Babel Standalone 浏览器端编译，零构建
 - **后端**：Python 3.11 + FastAPI + SQLAlchemy + Postgres（Fly Unmanaged）
+- **AI 调度**：后端启动时开一个 asyncio worker loop（见 `backend/ai_runner.py`）——无需外部 worker，AI 请求全部在 Fly 机器上进程内发
 - **数据库**：`users` / `events` / `ai_jobs` / `daily_reports` / `family_context` 5 张表
 - **AI 模型**：任意支持 Anthropic `/v1/messages` 协议的网关，默认 `claude-sonnet-4-6`
 
@@ -71,7 +73,7 @@
 > 建议：**如果只是家里用**，直接 fork 本仓库，改下 `backend/seed.py` 里的成员信息和默认 PIN 即可。
 > 下面是完整自部署流程。
 
-### 1. 后端部署到 Fly.io
+### 1. Fly.io 部署
 
 ```bash
 # 前提：安装 flyctl https://fly.io/docs/flyctl/install/
@@ -83,17 +85,21 @@ fly postgres create --name YOUR-DB-NAME --region sin \
   --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
 fly postgres attach YOUR-DB-NAME --app YOUR-APP-NAME
 
-# 生成密钥
+# 设置密钥（LLM_API_KEY 填 Anthropic 官方 key 或 Anthropic 兼容代理的 key）
 fly secrets set \
   SESSION_SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))') \
-  WORKER_TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))') \
+  LLM_API_KEY=sk-your-anthropic-compatible-key \
+  LLM_BASE_URL=https://api.anthropic.com \
+  LLM_MODEL=claude-sonnet-4-6 \
   --app YOUR-APP-NAME
 
 # 改 fly.toml 里的 app 名
 sed -i '' 's/gw-family-manager/YOUR-APP-NAME/' fly.toml
 
-# 部署
+# 部署（前端 index.html 也会被镜像打包，同源访问）
 fly deploy --app YOUR-APP-NAME
+
+# 打开 https://YOUR-APP-NAME.fly.dev/ 就是 app 入口
 ```
 
 ### 2. 改种子数据
@@ -102,25 +108,7 @@ fly deploy --app YOUR-APP-NAME
 - 把 4 个家人的名字、昵称、MBTI、职业、学校、成绩、爱好换成你家的信息
 - **改 `DEFAULT_PINS`**，别留 1111/2222/3333/4444 公开示例
 
-### 3. Mac worker 部署
-
-worker 在 Mac 上常驻，负责把 AI 任务转发给 LLM API。需要 Mac 开机才能分析事件。
-
-```bash
-cd worker
-FAMILY_WORKER_TOKEN=<step 1 生成的 WORKER_TOKEN> \
-LLM_API_KEY=<你的 Anthropic 兼容 key> \
-LLM_BASE_URL=https://api.anthropic.com \
-LLM_MODEL=claude-sonnet-4-6 \
-FAMILY_API=https://YOUR-APP-NAME.fly.dev \
-./install.sh
-```
-
-Mac 自动注册成 LaunchAgent 开机自启。日志：`tail -f ~/Library/Logs/family-manager/worker.log`
-
-### 4. 前端
-
-改 `index.html` 里的 `API_BASE` 指向你的 Fly 域名，推送到任何静态托管（GitHub Pages / Cloudflare Pages / Netlify / 自己服务器）。
+部署完后首次访问即按 seed 数据建库。之后可在 app 内的"成员档案 ✎"继续调细节。
 
 ## 已知限制 & 没做的事
 
@@ -129,7 +117,6 @@ Mac 自动注册成 LaunchAgent 开机自启。日志：`tail -f ~/Library/Logs/
 - ❌ 语音输入 —— UI 上的 `🎙` 按钮是占位
 - ❌ 微信 / 企微推送 —— 目前只有 app 内通知弹窗
 - ❌ 纪念册 / 趋势图表 —— 只有单事件和日报，没有周视图
-- ⚠️ Mac 合盖休眠时 worker 停工 —— LaunchAgent 依赖 Mac 持续开机
 - ⚠️ 事件详情 ❤️ 收藏、孩子送心心、评论发送 等按钮还是占位
 
 ## 致谢

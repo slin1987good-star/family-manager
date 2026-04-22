@@ -1,8 +1,10 @@
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Optional
-from fastapi import FastAPI, Depends, HTTPException, Header, Response
+from fastapi import FastAPI, Depends, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -14,9 +16,8 @@ import models
 import schemas
 import auth
 import ai as ai_mod
+import ai_runner
 from seed import seed_if_empty
-
-WORKER_TOKEN = os.environ.get("WORKER_TOKEN", "")
 
 # Family lives in Beijing (UTC+8). The daily report fires when local time
 # crosses 07:30, reports on the previous calendar day.
@@ -25,42 +26,6 @@ BEIJING = timezone(timedelta(hours=8))
 
 def _beijing_now():
     return datetime.now(BEIJING)
-
-
-def enqueue_daily_report_if_due(db: Session):
-    """Called on every worker poll. Cheap: constant-time checks + an index
-    hit on daily_reports.report_date."""
-    now = _beijing_now()
-    # Before 07:30, don't queue anything.
-    if now.hour < 7 or (now.hour == 7 and now.minute < 30):
-        return
-    target_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    # Already have a report for yesterday?
-    existing = db.query(models.DailyReport).filter_by(report_date=target_date).first()
-    if existing:
-        return
-    # Any daily_report job (pending / processing / failed) created in the last
-    # 2 hours? Skip. Prevents infinite re-enqueuing during rate-limit storms.
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
-    recent = (
-        db.query(models.AiJob)
-        .filter(models.AiJob.job_type == "daily_report")
-        .filter(models.AiJob.created_at >= cutoff)
-        .first()
-    )
-    if recent:
-        return
-    prompt = ai_mod.build_daily_report_prompt(db, target_date)
-    db.add(models.AiJob(
-        job_type="daily_report",
-        event_id=None,
-        prompt=prompt,
-    ))
-    # Store target_date on the job via a simple prefix marker we can read on
-    # complete. Using a dedicated column would be cleaner; marker keeps the
-    # migration surface minimal.
-    db.flush()
-    db.commit()
 
 
 def ensure_columns():
@@ -97,7 +62,21 @@ def recover_stale_jobs():
 
 recover_stale_jobs()
 
-app = FastAPI(title="Family Manager API")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    task = asyncio.create_task(ai_runner.worker_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(title="Family Manager API", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -373,154 +352,6 @@ def reanalyze_event(
     return event
 
 
-# ---- Worker endpoints --------------------------------------------------
-# Polled by the Mac worker; authenticated with a shared token (not user PIN).
-
-def require_worker(x_worker_token: str = Header(default="")):
-    if not WORKER_TOKEN or x_worker_token != WORKER_TOKEN:
-        raise HTTPException(401, "worker token invalid")
-
-
-class JobOut(BaseModel):
-    id: int
-    job_type: str
-    event_id: Optional[int] = None
-    prompt: str
-    attempts: int
-
-
-@app.get("/api/worker/jobs/next")
-def worker_next_job(
-    response: Response,
-    _: None = Depends(require_worker),
-    db: Session = Depends(get_db),
-):
-    # Recover zombies: any job stuck in 'processing' > 10 min is from a
-    # crashed worker run; flip it back to 'pending' so we retry. Cheap — a
-    # single indexed UPDATE with a WHERE clause.
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
-    stale = (
-        db.query(models.AiJob)
-        .filter(models.AiJob.status == "processing")
-        .filter(models.AiJob.started_at < stale_cutoff)
-        .update({"status": "pending"}, synchronize_session=False)
-    )
-    if stale:
-        db.commit()
-
-    # Lazy scheduling: every poll, check if daily report is due. Cheap.
-    try:
-        enqueue_daily_report_if_due(db)
-    except Exception as e:
-        print(f"daily enqueue failed: {e}")
-    job = (
-        db.query(models.AiJob)
-        .filter(models.AiJob.status == "pending")
-        .order_by(models.AiJob.created_at.asc())
-        .first()
-    )
-    if not job:
-        response.status_code = 204
-        return None
-    job.status = "processing"
-    job.started_at = datetime.now(timezone.utc)
-    job.attempts = (job.attempts or 0) + 1
-    db.commit()
-    db.refresh(job)
-    return JobOut(
-        id=job.id, job_type=job.job_type, event_id=job.event_id,
-        prompt=job.prompt or "", attempts=job.attempts,
-    )
-
-
-class JobComplete(BaseModel):
-    result: dict
-
-
-@app.post("/api/worker/jobs/{job_id}/complete")
-def worker_complete(
-    job_id: int,
-    body: JobComplete,
-    _: None = Depends(require_worker),
-    db: Session = Depends(get_db),
-):
-    job = db.query(models.AiJob).get(job_id)
-    if not job:
-        raise HTTPException(404, "job not found")
-
-    job.status = "done"
-    job.result = body.result
-    job.completed_at = datetime.now(timezone.utc)
-
-    if job.job_type == "event_analysis" and job.event_id:
-        ev = db.query(models.Event).get(job.event_id)
-        if ev:
-            r = body.result or {}
-            ai_title = (r.get("title") or "").strip()
-            if ai_title:
-                ev.title = ai_title
-            ev.ai_summary = r.get("summary") or None
-            ev.ai_cause = r.get("cause") or None
-            ev.ai_suggest = r.get("suggest") or None
-            ev.ai_script = r.get("script") or None
-            ev.ai_status = "done"
-
-    elif job.job_type == "daily_report":
-        r = body.result or {}
-        # Yesterday, Beijing time, computed from job creation time
-        job_created = (job.created_at or datetime.now(timezone.utc)).astimezone(BEIJING)
-        target_date = (job_created - timedelta(days=1)).strftime("%Y-%m-%d")
-        report_content = {
-            "highlight": r.get("highlight", ""),
-            "good": r.get("good", []) or [],
-            "watch": r.get("watch", []) or [],
-            "tip": r.get("tip", ""),
-        }
-        # Upsert by report_date
-        existing = (
-            db.query(models.DailyReport).filter_by(report_date=target_date).first()
-        )
-        if existing:
-            existing.content = report_content
-            existing.source_job_id = job.id
-        else:
-            db.add(models.DailyReport(
-                report_date=target_date,
-                content=report_content,
-                source_job_id=job.id,
-            ))
-        # And update the rolling family_context L3 card
-        new_ctx = (r.get("context") or "").strip()
-        if new_ctx:
-            db.add(models.FamilyContext(content=new_ctx, source_job_id=job.id))
-
-    db.commit()
-    return {"ok": True}
-
-
-class JobFail(BaseModel):
-    error: str
-
-
-@app.post("/api/worker/jobs/{job_id}/fail")
-def worker_fail(
-    job_id: int,
-    body: JobFail,
-    _: None = Depends(require_worker),
-    db: Session = Depends(get_db),
-):
-    job = db.query(models.AiJob).get(job_id)
-    if not job:
-        raise HTTPException(404, "job not found")
-    # retry up to 3 attempts; otherwise mark failed
-    if (job.attempts or 0) < 3:
-        job.status = "pending"
-    else:
-        job.status = "failed"
-        if job.event_id:
-            ev = db.query(models.Event).get(job.event_id)
-            if ev:
-                ev.ai_status = "failed"
-    job.error = body.error[:2000]
-    db.commit()
-    return {"ok": True, "retry": job.status == "pending"}
+# The previous /api/worker/* endpoints (used by the external Mac worker)
+# were removed once the backend started running `ai_runner.worker_loop()`
+# internally — all AI dispatch now happens in-process on Fly.
