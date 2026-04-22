@@ -71,21 +71,41 @@ def find_related(db: Session, target: models.Event, limit: int = MAX_RELATED) ->
 # ---- Member card --------------------------------------------------------
 
 def member_card(db: Session) -> str:
+    """Rich profile card for every family member, fed into every AI
+    analysis so the model knows strengths/improvements/hobbies/study
+    status — not just age + MBTI."""
     users = db.query(models.User).order_by(models.User.id).all()
     lines = []
     for u in users:
         p = u.profile or {}
-        bits = [
-            f"{u.emoji} {u.name}（{u.nickname}）",
-            f"{p.get('age', '?')} 岁",
-            u.role == "editor" and "编辑者" or "查看者",
-        ]
-        if p.get("mbti"):
-            bits.append(p["mbti"])
-        if p.get("occupation"):
-            bits.append(p["occupation"])
-        lines.append(" · ".join(bits))
-    return "\n".join(f"- {l}" for l in lines)
+        header = [f"{u.emoji} {u.name}（{u.nickname}）"]
+        if p.get("age"): header.append(f"{p['age']} 岁")
+        if p.get("mbti"): header.append(p["mbti"])
+        if p.get("occupation"): header.append(p["occupation"])
+        if p.get("company"): header.append(p["company"])
+        lines.append(f"- {' · '.join(header)}")
+
+        # Kids: academic snapshot
+        grade = p.get("grade") or {}
+        if grade.get("rank"):
+            subj = grade.get("subjects") or []
+            if subj:
+                subj_brief = "、".join(
+                    f"{s.get('k','')}{s.get('s','')}" for s in subj[:4] if s.get('k')
+                )
+                lines.append(f"  学习：{grade['rank']}（{subj_brief}）")
+            else:
+                lines.append(f"  学习：{grade['rank']}")
+
+        if p.get("strengths"):
+            lines.append(f"  闪光点：{' / '.join(p['strengths'][:3])}")
+        if p.get("improvements"):
+            lines.append(f"  成长空间：{' / '.join(p['improvements'][:3])}")
+        if p.get("hobbies"):
+            lines.append(f"  爱好：{'、'.join(p['hobbies'][:4])}")
+        if p.get("favFood"):
+            lines.append(f"  最爱吃：{p['favFood']}")
+    return "\n".join(lines)
 
 
 # ---- Family state card (L3) ---------------------------------------------
