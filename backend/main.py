@@ -275,6 +275,58 @@ def get_event(
     return event
 
 
+class EventUpdate(BaseModel):
+    type: Optional[str] = None
+    description: Optional[str] = None
+    members: Optional[List[str]] = None
+    mood: Optional[str] = None
+
+
+@app.patch("/api/events/{event_id}", response_model=schemas.EventOut)
+def update_event(
+    event_id: int,
+    payload: EventUpdate,
+    db: Session = Depends(get_db),
+    me: models.User = Depends(auth.current_user),
+):
+    """Editors only. Title isn't editable (AI maintains it); click 🔄 after
+    saving if you want the AI analysis refreshed for the new content."""
+    if me.role != "editor":
+        raise HTTPException(403, "只有爸爸/妈妈可以修改事件")
+    event = db.query(models.Event).get(event_id)
+    if not event:
+        raise HTTPException(404, "event not found")
+    if payload.type is not None:
+        event.type = payload.type
+    if payload.description is not None:
+        event.description = payload.description
+    if payload.members is not None:
+        event.members = payload.members
+    if payload.mood is not None:
+        event.mood = payload.mood or None
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+@app.delete("/api/events/{event_id}")
+def delete_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    me: models.User = Depends(auth.current_user),
+):
+    if me.role != "editor":
+        raise HTTPException(403, "只有爸爸/妈妈可以删除事件")
+    event = db.query(models.Event).get(event_id)
+    if not event:
+        raise HTTPException(404, "event not found")
+    # purge related ai_jobs first to avoid FK violation
+    db.query(models.AiJob).filter(models.AiJob.event_id == event_id).delete(synchronize_session=False)
+    db.delete(event)
+    db.commit()
+    return {"ok": True}
+
+
 @app.post("/api/events/{event_id}/reanalyze", response_model=schemas.EventOut)
 def reanalyze_event(
     event_id: int,

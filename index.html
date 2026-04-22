@@ -1081,9 +1081,13 @@ const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
 };
 
 /* ========== screens: event detail ========== */
-const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed }) => {
+const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed, onEdited, onDeleted }) => {
   if (!rawEvent) return null;
   const [regenBusy, setRegenBusy] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const event = localizeEvent(rawEvent, currentUser.id);
 
   const regenerate = async () => {
@@ -1091,8 +1095,6 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
     setRegenBusy(true);
     try {
       const updated = await api(`/api/events/${rawEvent.id}/reanalyze`, { method: 'POST' });
-      // status is now pending; keep old analysis visible. The App's polling
-      // effect will pick up the final result when the worker finishes.
       onReanalyzed && onReanalyzed(updated);
     } catch (e) {
       alert('重新生成失败：' + e.message);
@@ -1100,6 +1102,50 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
       setRegenBusy(false);
     }
   };
+
+  const beginEditEvent = () => {
+    setEditForm({
+      type: rawEvent.type,
+      description: rawEvent.desc || '',
+      members: [...(rawEvent.members || [])],
+      mood: rawEvent.mood || '',
+    });
+    setEditMode(true);
+    setShowMenu(false);
+  };
+
+  const saveEventEdit = async () => {
+    if (editBusy) return;
+    setEditBusy(true);
+    try {
+      const updated = await api(`/api/events/${rawEvent.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(editForm),
+      });
+      onEdited && onEdited(updated);
+      setEditMode(false);
+    } catch (e) {
+      alert('保存失败：' + e.message);
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setShowMenu(false);
+    if (!window.confirm('确定删除这条事件吗？删除后无法恢复。')) return;
+    try {
+      await api(`/api/events/${rawEvent.id}`, { method: 'DELETE' });
+      onDeleted && onDeleted(rawEvent.id);
+    } catch (e) {
+      alert('删除失败：' + e.message);
+    }
+  };
+
+  const toggleMember = (id) => setEditForm(f => ({
+    ...f,
+    members: f.members.includes(id) ? f.members.filter(x => x !== id) : [...f.members, id],
+  }));
   const author = FAMILY[event.author];
   const authorName = displayName(event.author, currentUser.id);
   const heroTone = event.type === 'conflict' ? 'coral' : event.type === 'important' ? 'honey' : event.type === 'habit' ? 'olive' : 'lavender';
@@ -1110,30 +1156,61 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
         padding: '16px 16px 24px',
         background: `linear-gradient(180deg, var(--${heroTone}-soft) 0%, var(--bg) 100%)`,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <button onClick={onClose} style={{
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, position: 'relative' }}>
+          <button onClick={editMode ? () => setEditMode(false) : onClose} style={{
             border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
           }}>
-            <Icon name="arrow-left" size={18}/>
+            <Icon name={editMode ? 'close' : 'arrow-left'} size={editMode ? 16 : 18}/>
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
             {currentUser.role === 'editor' ? (
-              <button style={{
-                border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
-              }}><Icon name="edit" size={16}/></button>
+              editMode ? (
+                <button onClick={saveEventEdit} disabled={editBusy} style={{
+                  border: 0, background: 'var(--coral)', padding: '0 16px', height: 36, borderRadius: 999,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  boxShadow: 'var(--shadow-soft)', color: '#fff', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 700, opacity: editBusy ? 0.6 : 1,
+                }}>
+                  <Icon name="check" size={15}/>{editBusy ? '保存中…' : '保存'}
+                </button>
+              ) : (
+                <>
+                  <button onClick={beginEditEvent} style={{
+                    border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+                  }}><Icon name="edit" size={16}/></button>
+                  <button onClick={() => setShowMenu(v => !v)} style={{
+                    border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
+                  }}><Icon name="more" size={16}/></button>
+                </>
+              )
             ) : (
               <span className="readonly-badge"><Icon name="eye" size={12}/> 仅查看</span>
             )}
-            <button style={{
-              border: 0, background: 'var(--surface)', width: 36, height: 36, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: 'var(--shadow-soft)', color: 'var(--ink)', cursor: 'pointer',
-            }}><Icon name="more" size={16}/></button>
           </div>
+          {showMenu && (
+            <div onClick={() => setShowMenu(false)}
+                 style={{ position: 'fixed', inset: 0, zIndex: 99 }}/>
+          )}
+          {showMenu && (
+            <div style={{
+              position: 'absolute', top: 44, right: 0, zIndex: 100,
+              background: 'var(--surface)', borderRadius: 12,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+              minWidth: 140, overflow: 'hidden',
+            }}>
+              <button onClick={handleDelete} style={{
+                width: '100%', border: 0, background: 'transparent',
+                padding: '12px 16px', textAlign: 'left',
+                color: 'var(--coral)', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}>🗑  删除事件</button>
+            </div>
+          )}
         </div>
         <TypeTag type={event.type}/>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', marginTop: 10, lineHeight: 1.35 }}>
@@ -1147,30 +1224,110 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
       </div>
 
       <div style={{ padding: '4px 16px 100px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div className="card" style={{ padding: 14 }}>
-          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>涉及家人</div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {event.members.map(id => {
-              const m = FAMILY[id];
-              return (
-                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6,
-                  background: 'var(--surface-muted)', padding: '6px 10px 6px 6px', borderRadius: 999 }}>
-                  <Avatar member={m} size="sm"/>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{displayName(id, currentUser.id)}</span>
+        {editMode && (
+          <>
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>事件类型</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {Object.values(EVENT_TYPES).map(t => (
+                  <button key={t.key} onClick={() => setEditForm(f => ({ ...f, type: t.key }))} style={{
+                    border: editForm.type === t.key ? '2px solid var(--coral)' : '2px solid var(--line-soft)',
+                    background: editForm.type === t.key ? 'var(--coral-soft)' : 'var(--surface-muted)',
+                    borderRadius: 14, padding: '10px 4px',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer',
+                  }}>
+                    <span style={{ fontSize: 22 }}>{t.emoji}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 8 }}>描述</div>
+              <textarea value={editForm.description}
+                onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                rows={5} style={{
+                  width: '100%', border: 0, background: 'transparent', resize: 'none',
+                  fontSize: 14, color: 'var(--ink)', outline: 'none', padding: 0,
+                  fontFamily: 'inherit', lineHeight: 1.6,
+                }}/>
+            </div>
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>涉及的家人</div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+                {MEMBERS_LIST.map(m => {
+                  const on = editForm.members.includes(m.id);
+                  return (
+                    <button key={m.id} onClick={() => toggleMember(m.id)} style={{
+                      border: 0, background: 'transparent', cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      opacity: on ? 1 : 0.45, position: 'relative',
+                    }}>
+                      <Avatar member={m} size="lg"/>
+                      {on && (
+                        <div style={{
+                          position: 'absolute', top: -2, right: -2,
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'var(--coral)', color: '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          border: '2px solid var(--surface)',
+                        }}><Icon name="check" size={10}/></div>
+                      )}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>{m.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {editForm.type === 'conflict' && (
+              <div className="card" style={{ padding: 14 }}>
+                <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>心情</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {['开心','骄傲','平静','着急','生气','失望','温暖','疲惫','无奈'].map(m => (
+                    <button key={m} onClick={() => setEditForm(f => ({ ...f, mood: f.mood === m ? '' : m }))} style={{
+                      border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                      background: editForm.mood === m ? 'var(--coral)' : 'var(--surface-muted)',
+                      color: editForm.mood === m ? '#fff' : 'var(--ink-soft)', cursor: 'pointer',
+                    }}>{m}</button>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+            )}
+            <div style={{
+              padding: 12, background: 'var(--surface-muted)', borderRadius: 12,
+              fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.6,
+            }}>
+              改动不会自动重分析。保存后如果希望 AI 重新看一下，请到下面点 🔄 重新生成。
+            </div>
+          </>
+        )}
 
-        {event.desc && (
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 8 }}>当时发生了什么</div>
-            <div style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7 }}>{event.desc}</div>
+        {!editMode && (
+          <div className="card" style={{ padding: 14 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 10 }}>涉及家人</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {event.members.map(id => {
+                const m = FAMILY[id];
+                return (
+                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'var(--surface-muted)', padding: '6px 10px 6px 6px', borderRadius: 999 }}>
+                    <Avatar member={m} size="sm"/>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{displayName(id, currentUser.id)}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {!event.aiSummary && event.aiStatus !== 'failed' && (
+        {!editMode && event.desc && (
+          <div className="card" style={{ padding: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 700, marginBottom: 8 }}>当时发生了什么</div>
+            <div style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{event.desc}</div>
+          </div>
+        )}
+
+        {!editMode && !event.aiSummary && event.aiStatus !== 'failed' && (
           <div className="card ai-card" style={{ padding: 16, textAlign: 'center' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-soft)' }}>
               <Icon name="sparkle" size={14} color="var(--lavender)" style={{ marginRight: 6 }}/>
@@ -1181,7 +1338,7 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
             </div>
           </div>
         )}
-        {!event.aiSummary && event.aiStatus === 'failed' && (
+        {!editMode && !event.aiSummary && event.aiStatus === 'failed' && (
           <div className="card" style={{ padding: 14, borderLeft: '3px solid var(--coral)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--coral)' }}>AI 分析失败</div>
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4, marginBottom: 10 }}>
@@ -1195,7 +1352,7 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
             )}
           </div>
         )}
-        {event.aiSummary && (
+        {!editMode && event.aiSummary && (
           <div className="card ai-card" style={{ padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <div style={{
@@ -1285,25 +1442,12 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
           </div>
         )}
 
-        {currentUser.role === 'editor' ? (
-          <div className="card" style={{ padding: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Avatar member={currentUser} size="sm"/>
-            <input placeholder="加一条备注..." style={{
-              flex: 1, border: 0, background: 'var(--surface-muted)',
-              padding: '10px 14px', borderRadius: 999, fontSize: 13, outline: 'none',
-              fontFamily: 'inherit',
-            }}/>
-            <button style={{ border: 0, background: 'var(--coral)', width: 36, height: 36, borderRadius: '50%',
-              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <Icon name="send" size={16}/>
-            </button>
-          </div>
-        ) : (
+        {!editMode && currentUser.role !== 'editor' && (
           <div style={{
             padding: 14, background: 'var(--surface-muted)', borderRadius: 16,
             fontSize: 12, color: 'var(--ink-soft)', textAlign: 'center',
           }}>
-            <Icon name="lock" size={12} style={{ marginRight: 4 }}/> 查看者不能添加备注，但可以给这条事件送个小心心 ❤️
+            <Icon name="lock" size={12} style={{ marginRight: 4 }}/> 查看者暂不能添加备注（功能建设中）
           </div>
         )}
       </div>
@@ -1639,6 +1783,10 @@ const MemberDetailScreen = ({ memberId, onBack, currentUser, onUpdated }) => {
       strengths: Array.isArray(m.strengths) ? [...m.strengths] : [],
       improvements: Array.isArray(m.improvements) ? [...m.improvements] : [],
       hobbies: Array.isArray(m.hobbies) ? [...m.hobbies] : [],
+      grade: m.grade ? {
+        rank: m.grade.rank || '',
+        subjects: (m.grade.subjects || []).map(s => ({ ...s })),
+      } : (isKid ? { rank: '', subjects: [] } : null),
     });
     setEditMode(true);
   };
@@ -1664,8 +1812,16 @@ const MemberDetailScreen = ({ memberId, onBack, currentUser, onUpdated }) => {
         improvements: form.improvements,
         hobbies: form.hobbies,
       };
-      // keep grade untouched (server merges the rest of profile)
-      if (m.grade) profile.grade = m.grade;
+      if (form.grade) {
+        const cleanSubjects = (form.grade.subjects || [])
+          .filter(s => s.k && String(s.k).trim())
+          .map(s => ({
+            k: String(s.k).trim(),
+            s: Math.max(0, Math.min(100, Number(s.s) || 0)),
+            trend: s.trend || 'flat',
+          }));
+        profile.grade = { rank: form.grade.rank || '', subjects: cleanSubjects };
+      }
       const updated = await api(`/api/users/${m.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ nickname: form.nickname, profile }),
@@ -1798,11 +1954,66 @@ const MemberDetailScreen = ({ memberId, onBack, currentUser, onUpdated }) => {
               </div>
             </Section>
 
-            {m.grade && (
-              <div style={{ padding: 12, background: 'var(--surface-muted)', borderRadius: 12,
-                fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-                📊 成绩档保留不动。后续单独出一个编辑页（科目/名次要按学期维护）。
-              </div>
+            {isKid && (
+              <Section title="📊 最近成绩">
+                <EditableRow label="名次" value={form.grade?.rank || ''}
+                  onChange={v => upd('grade', { ...(form.grade || {}), rank: v, subjects: form.grade?.subjects || [] })}
+                  placeholder="例如：年级前 30 / 班级前 10"/>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700, margin: '12px 0 8px' }}>
+                  科目成绩
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(form.grade?.subjects || []).map((s, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input value={s.k} onChange={e => {
+                        const next = [...form.grade.subjects];
+                        next[i] = { ...next[i], k: e.target.value };
+                        upd('grade', { ...form.grade, subjects: next });
+                      }} placeholder="科目" style={{
+                        width: 70, border: '1px solid var(--line)', background: 'var(--surface-muted)',
+                        padding: '6px 8px', borderRadius: 8, fontSize: 13, outline: 'none',
+                      }}/>
+                      <input type="number" min="0" max="100" value={s.s}
+                        onChange={e => {
+                          const next = [...form.grade.subjects];
+                          next[i] = { ...next[i], s: Number(e.target.value) || 0 };
+                          upd('grade', { ...form.grade, subjects: next });
+                        }} style={{
+                          width: 60, border: '1px solid var(--line)', background: 'var(--surface-muted)',
+                          padding: '6px 8px', borderRadius: 8, fontSize: 13, outline: 'none',
+                        }}/>
+                      <select value={s.trend || 'flat'} onChange={e => {
+                        const next = [...form.grade.subjects];
+                        next[i] = { ...next[i], trend: e.target.value };
+                        upd('grade', { ...form.grade, subjects: next });
+                      }} style={{
+                        border: '1px solid var(--line)', background: 'var(--surface-muted)',
+                        padding: '6px 8px', borderRadius: 8, fontSize: 13, outline: 'none',
+                      }}>
+                        <option value="up">↑ 进步</option>
+                        <option value="flat">— 平稳</option>
+                        <option value="down">↓ 退步</option>
+                      </select>
+                      <button onClick={() => {
+                        const next = form.grade.subjects.filter((_, idx) => idx !== i);
+                        upd('grade', { ...form.grade, subjects: next });
+                      }} style={{
+                        border: 0, background: 'var(--coral-soft)', color: 'var(--coral)',
+                        width: 26, height: 26, borderRadius: '50%', cursor: 'pointer',
+                        fontSize: 14, lineHeight: 1,
+                      }}>×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => {
+                    const next = [...(form.grade?.subjects || []), { k: '', s: 0, trend: 'flat' }];
+                    upd('grade', { ...(form.grade || { rank: '' }), subjects: next });
+                  }} style={{
+                    border: '1px dashed var(--line)', background: 'transparent', color: 'var(--ink-soft)',
+                    padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+                    marginTop: 4, alignSelf: 'flex-start',
+                  }}>+ 添加科目</button>
+                </div>
+              </Section>
             )}
           </>
         ) : (
@@ -2423,6 +2634,19 @@ const App = () => {
           const idx = EVENTS.findIndex(e => e.id === u.id);
           if (idx >= 0) EVENTS[idx] = u;
           setSelectedEvent(u);
+          rerender();
+        }}
+        onEdited={(updated) => {
+          const u = normalizeEvent(updated);
+          const idx = EVENTS.findIndex(e => e.id === u.id);
+          if (idx >= 0) EVENTS[idx] = u;
+          setSelectedEvent(u);
+          rerender();
+        }}
+        onDeleted={(id) => {
+          EVENTS = EVENTS.filter(e => e.id !== id);
+          setScene('timeline');
+          setActiveTab('timeline');
           rerender();
         }}/>;
       break;
