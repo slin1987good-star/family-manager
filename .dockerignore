@@ -4,5 +4,6 @@
 **/__pycache__
 **/*.pyc
 backend/local.db
-index.html
 README.md
+LICENSE
+worker/

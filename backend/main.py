@@ -1,8 +1,10 @@
 import os
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -109,6 +111,17 @@ app.add_middleware(
 @app.head("/health")
 def health():
     return {"status": "ok"}
+
+
+# Serve the SPA frontend at / so the app runs same-origin on fly.dev.
+_STATIC_INDEX = Path(__file__).parent / "static" / "index.html"
+
+
+@app.get("/")
+def index():
+    if _STATIC_INDEX.exists():
+        return FileResponse(_STATIC_INDEX, media_type="text/html")
+    return Response(status_code=404, content="frontend not bundled")
 
 
 class LoginIn(BaseModel):
