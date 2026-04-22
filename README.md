@@ -3,7 +3,8 @@
 > 一个 AI 驱动的家庭事务记录 + 分析工具，帮四口之家把每天的冲突、温情、好习惯、坏习惯都沉淀下来，
 > 由 AI 每天早上送一份温柔的小报告，给每位家长可执行的沟通/习惯建议。
 
-**体验地址**：<https://slin1987good-star.github.io/family-manager/>（连接的是真实后端；需要 4 位 PIN 登录，默认 `1111/2222/3333/4444`）
+> **这是一份开源代码，不提供公开体验站点**——原作者的部署连着真实家庭数据，
+> 不对外开放。想试就按下面 [运行一份自己的](#运行一份自己的) fork 一份部署到自己账号。
 
 ![status](https://img.shields.io/badge/Status-Active-brightgreen) ![license](https://img.shields.io/badge/License-MIT-blue)
 
