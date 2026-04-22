@@ -397,21 +397,6 @@ const beijingTimeHHMM = () => {
   return _bjFmt({ hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
 };
 
-const AI_ADVICE = [
-  { id: 'a1', kind: '沟通', for: 'mom',
-    title: '和女儿谈作业节奏',
-    body: '不要开场就说"快去写作业"。先问"你打算怎么安排今晚？"把选择权还给她。',
-    action: '试试这个开场' },
-  { id: 'a2', kind: '习惯', for: 'family',
-    title: '建立"餐后 10 分钟家庭闲聊"',
-    body: '每人说一件今天的小事。能显著减少冲突，增强归属感。',
-    action: '加入今日日程' },
-  { id: 'a3', kind: '沟通', for: 'dad',
-    title: '夸奖儿子时要具体',
-    body: '不说"真棒"，说"你卡住那次没放弃，这个过程我看到了"。',
-    action: '今晚试试' },
-];
-
 /* ========== perspective ========== */
 const REL_MAP = {
   dad:      { dad: '我',    mom: '老婆',  daughter: '女儿', son: '儿子' },
@@ -501,37 +486,53 @@ const getDailyReport = (viewerId) => {
   };
 };
 
+const COMMUNICATION_KEYWORDS = ['沟通','聊','说','开口','对话','告诉','表达','夸','承认','道歉','问','倾听','理解'];
+const HABIT_KEYWORDS = ['习惯','坚持','规则','约定','打卡','每天','每周','睡','吃','练','提醒','贴','奖励','记录'];
+
+const inferAdviceKind = (body, eventType) => {
+  if (eventType === 'habit') return '习惯';
+  if (eventType === 'conflict') return '沟通';
+  if (COMMUNICATION_KEYWORDS.some(k => body.includes(k))) return '沟通';
+  if (HABIT_KEYWORDS.some(k => body.includes(k))) return '习惯';
+  return eventType === 'daily' ? '习惯' : '沟通';
+};
+
+const triedStorageKey = () => 'family-advice-tried';
+const getTriedSet = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(triedStorageKey()) || '[]')); }
+  catch { return new Set(); }
+};
+const setTried = (id, tried) => {
+  const s = getTriedSet();
+  if (tried) s.add(id); else s.delete(id);
+  localStorage.setItem(triedStorageKey(), JSON.stringify([...s]));
+};
+
+// Build advice list from real events' ai_suggest arrays. Each suggestion
+// becomes its own card, tagged 沟通 or 习惯, linked back to its source event.
 const getAdviceForViewer = (viewerId) => {
-  const user = FAMILY[viewerId];
-  if (!user) return AI_ADVICE;
-  if (user.role === 'editor') {
-    return AI_ADVICE.map(a => ({
-      ...a,
-      title: relabel(a.title, viewerId),
-      body: relabel(a.body, viewerId),
-    }));
-  }
-  if (viewerId === 'son') {
-    return [
-      { id: 's1', kind: '习惯', for: 'son', title: '把拼图的耐心用到写字上',
-        body: '你能坚持拼完 200 片城堡——写字也可以这样，一笔一笔慢慢来，不着急。', action: '今天试试' },
-      { id: 's2', kind: '沟通', for: 'son', title: '想吃草莓，可以直接说',
-        body: '妈妈不是读心术大师，你想要什么直接告诉她，她会很开心。', action: '知道啦' },
-      { id: 's3', kind: '习惯', for: 'son', title: '吃饭时试试青菜',
-        body: '挑食这件事不用一口气改掉，每顿饭吃一筷子新的菜就行~', action: '小目标' },
-    ];
-  }
-  if (viewerId === 'daughter') {
-    return [
-      { id: 'd1', kind: '沟通', for: 'daughter', title: '和妈妈说说你的想法',
-        body: '妈妈不是想管你，她只是担心你睡眠。试着主动告诉她你的计划，她会更放心。', action: '试试' },
-      { id: 'd2', kind: '习惯', for: 'daughter', title: '物理不是你不行',
-        body: '物理需要"画出来"理解，试试每道题先画一个小示意图再动笔。', action: '今晚试试' },
-      { id: 'd3', kind: '习惯', for: 'daughter', title: '阅读习惯保持得真棒',
-        body: '《夏洛的网》读完后，要不要把最打动你的一句话写在你的小本子上？', action: '好主意' },
-    ];
-  }
-  return AI_ADVICE;
+  const myEvents = visibleEvents(viewerId);
+  const items = [];
+  myEvents.forEach(e => {
+    if (!e.aiSuggest || !e.aiSuggest.length) return;
+    const localized = localizeEvent(e, viewerId);
+    e.aiSuggest.forEach((body, idx) => {
+      const relabeled = relabel(body, viewerId);
+      items.push({
+        id: `${e.id}-${idx}`,
+        kind: inferAdviceKind(relabeled, e.type),
+        title: localized.title,
+        body: relabeled,
+        eventId: e.id,
+        eventType: e.type,
+        members: e.members,
+        eventDate: e.date,
+      });
+    });
+  });
+  // Newest events first; within an event keep original suggestion order.
+  items.sort((a, b) => (b.eventId - a.eventId) || 0);
+  return items;
 };
 
 /* ========== shared components ========== */
@@ -735,30 +736,49 @@ const EventRow = ({ event, onOpen, compact, currentUser }) => {
 };
 
 /* ========== screens: home ========== */
-const AdviceCard = ({ advice, currentUser }) => {
+const AdviceCard = ({ advice, currentUser, onOpenEvent, onToggleTried, tried }) => {
   const accent = advice.kind === '沟通' ? 'var(--lavender)' : 'var(--olive)';
   const accentSoft = advice.kind === '沟通' ? 'var(--lavender-soft)' : 'var(--olive-soft)';
+  const isTried = !!tried;
   return (
-    <div className="card" style={{ padding: 14, borderLeft: `3px solid ${accent}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+    <div className="card" style={{
+      padding: 14, borderLeft: `3px solid ${accent}`,
+      opacity: isTried ? 0.55 : 1,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
         <span className="chip" style={{ background: accentSoft, color: accent, fontWeight: 700 }}>
           {advice.kind === '沟通' ? '💬 沟通' : '🌱 习惯'}
         </span>
-        {advice.for !== 'family' && advice.for !== currentUser?.id && FAMILY[advice.for] && (
-          <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
-            给 {displayName(advice.for, currentUser?.id)}
-          </span>
+        {isTried && (
+          <span style={{ fontSize: 11, color: 'var(--olive)', fontWeight: 700 }}>✓ 已尝试</span>
         )}
       </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{advice.title}</div>
-      <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 4, lineHeight: 1.55 }}>{advice.body}</div>
-      <button style={{
-        marginTop: 10, border: 0, background: 'transparent',
-        color: accent, fontSize: 12, fontWeight: 700, padding: 0,
-        display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
-      }}>
-        {advice.action} <Icon name="arrow-right" size={12}/>
-      </button>
+      {advice.title && (
+        <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 2 }}>
+          💡 来自「{advice.title}」
+        </div>
+      )}
+      <div style={{ fontSize: 13, color: 'var(--ink)', marginTop: 4, lineHeight: 1.6 }}>
+        {advice.body}
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+        <button onClick={() => onToggleTried && onToggleTried(advice.id, !isTried)} style={{
+          border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+          background: isTried ? 'var(--surface-muted)' : accent,
+          color: isTried ? 'var(--ink-soft)' : '#fff', cursor: 'pointer',
+        }}>
+          {isTried ? '↩ 撤销已尝试' : '🙌 我试过了'}
+        </button>
+        {advice.eventId && onOpenEvent && (
+          <button onClick={() => onOpenEvent(advice.eventId)} style={{
+            border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+            background: 'var(--surface-muted)', color: 'var(--ink-soft)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            查看事件 <Icon name="arrow-right" size={11}/>
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -768,8 +788,15 @@ const HomeScreen = ({ currentUser, onOpenEvent, onNavigate, onOpenAdvice, onOpen
   const myEvents = visibleEvents(currentUser.id);
   const todayEvents = myEvents.filter(e => e.date === today).slice(0, 3)
     .map(e => localizeEvent(e, currentUser.id));
-  const trending = getAdviceForViewer(currentUser.id).slice(0, 2);
+  const [, forceRe] = useState(0);
+  const triedSet = getTriedSet();
+  const trending = getAdviceForViewer(currentUser.id).filter(a => !triedSet.has(a.id)).slice(0, 2);
   const report = getDailyReport(currentUser.id);
+  const openEventById = (eid) => {
+    const ev = EVENTS.find(e => e.id === eid);
+    if (ev) onOpenEvent(ev);
+  };
+  const toggleTried = (id, v) => { setTried(id, v); forceRe(n => n + 1); };
 
   return (
     <div className="app scroll-hide">
@@ -811,7 +838,18 @@ const HomeScreen = ({ currentUser, onOpenEvent, onNavigate, onOpenAdvice, onOpen
           }}>更多 <Icon name="arrow-right" size={12}/></button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {trending.map(a => <AdviceCard key={a.id} advice={a} currentUser={currentUser}/>)}
+          {trending.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12 }}>
+              目前没有新建议。记录更多事件，AI 会在这里推给你。
+            </div>
+          ) : (
+            trending.map(a => (
+              <AdviceCard key={a.id} advice={a} currentUser={currentUser}
+                onOpenEvent={openEventById}
+                onToggleTried={toggleTried}
+                tried={triedSet.has(a.id)}/>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -1456,11 +1494,34 @@ const EventDetailScreen = ({ event: rawEvent, onClose, currentUser, onReanalyzed
 };
 
 /* ========== screens: advice ========== */
-const AdviceScreen = ({ onBack, currentUser }) => {
+const AdviceScreen = ({ onBack, currentUser, onOpenEvent }) => {
   const [tab, setTab] = useState('all');
+  const [showTried, setShowTried] = useState(false);
+  const [, forceRe] = useState(0);
+  const triedSet = getTriedSet();
   const ALL = getAdviceForViewer(currentUser?.id);
-  const filtered = tab === 'all' ? ALL : ALL.filter(a => a.kind === tab);
+  const byKind = tab === 'all' ? ALL : ALL.filter(a => a.kind === tab);
+  const filtered = showTried ? byKind : byKind.filter(a => !triedSet.has(a.id));
+  const triedCount = byKind.filter(a => triedSet.has(a.id)).length;
   const isKid = currentUser && currentUser.role === 'viewer';
+
+  const toggleTried = (id, v) => { setTried(id, v); forceRe(n => n + 1); };
+  const openEvent = (eid) => {
+    if (!onOpenEvent) return;
+    const ev = EVENTS.find(e => e.id === eid);
+    if (ev) onOpenEvent(ev);
+  };
+
+  // Insight card: pull from daily-report tip if we have one, else from
+  // the latest event's summary. Falls back to a gentle prompt.
+  const insightText = (() => {
+    if (DAILY_REPORT && DAILY_REPORT.tip) {
+      return relabel(DAILY_REPORT.tip, currentUser?.id);
+    }
+    const withSummary = ALL[0];
+    if (withSummary) return withSummary.body;
+    return '还没积累足够的事件，AI 建议会在你记录更多事之后出现。';
+  })();
 
   return (
     <div className="app scroll-hide">
@@ -1476,7 +1537,7 @@ const AdviceScreen = ({ onBack, currentUser }) => {
         <div style={{ fontSize: 22, fontWeight: 800 }}>{isKid ? '给我的小建议' : 'AI 建议中心'}</div>
         <div className="hand" style={{ fontSize: 20, color: 'var(--lavender)', lineHeight: 1 }}>Gentle suggestions · 每天一点点</div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
           {[{ k: 'all', l: '全部' }, { k: '沟通', l: '💬 沟通' }, { k: '习惯', l: '🌱 习惯' }].map(x => (
             <button key={x.k} onClick={() => setTab(x.k)} style={{
               border: 0, padding: '8px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
@@ -1485,19 +1546,42 @@ const AdviceScreen = ({ onBack, currentUser }) => {
               cursor: 'pointer',
             }}>{x.l}</button>
           ))}
+          {triedCount > 0 && (
+            <button onClick={() => setShowTried(v => !v)} style={{
+              border: 0, padding: '8px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+              background: 'var(--surface)', color: 'var(--ink-soft)',
+              cursor: 'pointer',
+            }}>
+              {showTried ? `隐藏已尝试 (${triedCount})` : `显示已尝试 (${triedCount})`}
+            </button>
+          )}
         </div>
       </div>
 
       <div style={{ padding: '14px 16px 100px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="card ai-card" style={{ padding: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>{isKid ? '这周的你' : '本周洞察'}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginTop: 6, lineHeight: 1.55 }}>
-            {isKid
-              ? <>你本周的关键词是<b style={{ color: 'var(--coral)' }}>"坚持"</b>，拼图上的你特别棒✨</>
-              : <>你们家这周的主题是<b style={{ color: 'var(--coral)' }}>"节奏"</b>。三次小摩擦都和时间安排有关，试试把规则变成一起制定的约定。</>}
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>
+            {isKid ? '这周给你的小提示' : '最新 AI 建议'}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginTop: 6, lineHeight: 1.6 }}>
+            {insightText}
           </div>
         </div>
-        {filtered.map(a => <AdviceCard key={a.id} advice={a} currentUser={currentUser}/>)}
+
+        {filtered.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>
+            {ALL.length === 0
+              ? '还没有 AI 建议——记几条事件，AI 分析完会把建议汇总到这里 🌿'
+              : '这类建议都试过啦 ✓'}
+          </div>
+        ) : (
+          filtered.map(a => (
+            <AdviceCard key={a.id} advice={a} currentUser={currentUser}
+              onOpenEvent={openEvent}
+              onToggleTried={toggleTried}
+              tried={triedSet.has(a.id)}/>
+          ))
+        )}
       </div>
     </div>
   );
@@ -2667,7 +2751,9 @@ const App = () => {
         }}/>;
       break;
     case 'advice':
-      screen = <AdviceScreen currentUser={currentUser} onBack={() => { setScene('home'); setActiveTab('home'); }}/>;
+      screen = <AdviceScreen currentUser={currentUser}
+        onBack={() => { setScene('home'); setActiveTab('home'); }}
+        onOpenEvent={openEvent}/>;
       break;
     case 'settings':
       screen = <SettingsScreen currentUser={currentUser} onOpenMember={openMember}
