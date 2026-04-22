@@ -927,9 +927,22 @@ const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
   const [members, setMembers] = useState([currentUser.id]);
   const [mood, setMood] = useState('');
   const [aiGen, setAiGen] = useState(false);
+  const [saving, setSaving] = useState(false);  // guard against double-submit
 
   const toggle = (id) => setMembers(m => m.includes(id) ? m.filter(x => x !== id) : [...m, id]);
-  const canSave = desc.trim().length >= 4 && members.length > 0 && !readOnly;
+  const canSave = desc.trim().length >= 4 && members.length > 0 && !readOnly && !saving;
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      await onSave({ type, desc, members, mood });
+    } finally {
+      // onSave navigates away on success, so this usually doesn't flash;
+      // it's just a safety net if the caller keeps us mounted after failure.
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (desc.length > 20 && !aiGen) {
@@ -952,9 +965,9 @@ const AddEventScreen = ({ currentUser, onClose, onSave, readOnly }) => {
           <Icon name="close" size={18}/> 取消
         </button>
         <div style={{ fontSize: 16, fontWeight: 800 }}>记录一件事</div>
-        <button disabled={!canSave} onClick={() => onSave({ type, desc, members, mood })}
+        <button disabled={!canSave} onClick={handleSave}
           className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }}>
-          保存
+          {saving ? '保存中…' : '保存'}
         </button>
       </div>
 

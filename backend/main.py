@@ -74,6 +74,27 @@ Base.metadata.create_all(bind=engine)
 ensure_columns()
 seed_if_empty()
 
+
+def recover_stale_jobs():
+    """On startup, any job still in 'processing' is a zombie from a crashed
+    worker run — reset it so the current worker can retry."""
+    from db import SessionLocal as _S
+    db = _S()
+    try:
+        n = (
+            db.query(models.AiJob)
+            .filter(models.AiJob.status == "processing")
+            .update({"status": "pending"}, synchronize_session=False)
+        )
+        if n:
+            db.commit()
+            print(f"[startup] recovered {n} stale processing job(s)")
+    finally:
+        db.close()
+
+
+recover_stale_jobs()
+
 app = FastAPI(title="Family Manager API")
 
 app.add_middleware(
@@ -309,6 +330,19 @@ def worker_next_job(
     _: None = Depends(require_worker),
     db: Session = Depends(get_db),
 ):
+    # Recover zombies: any job stuck in 'processing' > 10 min is from a
+    # crashed worker run; flip it back to 'pending' so we retry. Cheap — a
+    # single indexed UPDATE with a WHERE clause.
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
+    stale = (
+        db.query(models.AiJob)
+        .filter(models.AiJob.status == "processing")
+        .filter(models.AiJob.started_at < stale_cutoff)
+        .update({"status": "pending"}, synchronize_session=False)
+    )
+    if stale:
+        db.commit()
+
     # Lazy scheduling: every poll, check if daily report is due. Cheap.
     try:
         enqueue_daily_report_if_due(db)
