@@ -389,9 +389,9 @@ const beijingDateYMD = () => {
   return `${o.year}-${o.month}-${o.day}`;
 };
 const beijingDateLabel = () => {
-  const p = _bjFmt({ year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).formatToParts(new Date());
+  const p = _bjFmt({ year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'long' }).formatToParts(new Date());
   const o = Object.fromEntries(p.map(x => [x.type, x.value]));
-  return `${o.year} 年 ${o.month} ${o.day} 日 · ${o.weekday}`;
+  return `${o.year} 年 ${o.month} 月 ${o.day} 日 · ${o.weekday}`;
 };
 const beijingTimeHHMM = () => {
   return _bjFmt({ hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
